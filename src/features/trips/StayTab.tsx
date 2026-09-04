@@ -91,7 +91,7 @@ function HotelCard({ hotel, trip }: { hotel: Hotel; trip: Trip }) {
 /* ---------------- Flights ---------------- */
 function FlightForm({ open, onClose, trip, flight }: { open: boolean; onClose: () => void; trip: Trip; flight?: Flight }) {
   const members = useMembers() ?? [];
-  const [form, setForm] = useState<Partial<Flight>>(flight ?? { tripId: trip.id, airline: "", flightNumber: "", from: "", to: "", departAt: `${trip.startDate}T09:00`, arriveAt: `${trip.startDate}T15:00`, passengerIds: trip.travellerIds, status: "missing", attachmentIds: [] });
+  const [form, setForm] = useState<Partial<Flight>>(flight ?? { tripId: trip.id, airline: "", flightNumber: "", from: "", to: "", departAt: `${trip.startDate}T00:00`, arriveAt: `${trip.startDate}T00:00`, passengerIds: trip.travellerIds, status: "missing", attachmentIds: [] });
   const set = (k: keyof Flight, v: unknown) => setForm((f) => ({ ...f, [k]: v }));
   const valid = form.flightNumber?.trim() && form.from && form.to && form.departAt && form.arriveAt;
   return (
@@ -102,8 +102,8 @@ function FlightForm({ open, onClose, trip, flight }: { open: boolean; onClose: (
           <Field label="Flight number"><Input value={form.flightNumber ?? ""} onChange={(e) => set("flightNumber", e.target.value)} placeholder="SQ423" className="uppercase" /></Field>
           <Field label="From (IATA)"><Input value={form.from ?? ""} onChange={(e) => set("from", e.target.value)} placeholder="BOM" maxLength={3} className="uppercase" /></Field>
           <Field label="To (IATA)"><Input value={form.to ?? ""} onChange={(e) => set("to", e.target.value)} placeholder="SIN" maxLength={3} className="uppercase" /></Field>
-          <Field label="Departs (local)"><Input type="datetime-local" value={form.departAt ?? ""} onChange={(e) => set("departAt", e.target.value)} /></Field>
-          <Field label="Arrives (local)"><Input type="datetime-local" value={form.arriveAt ?? ""} onChange={(e) => set("arriveAt", e.target.value)} /></Field>
+          <Field label="Departure date"><Input type="date" value={form.departAt?.slice(0, 10) ?? ""} onChange={(e) => set("departAt", `${e.target.value}T00:00`)} /></Field>
+          <Field label="Arrival date"><Input type="date" value={form.arriveAt?.slice(0, 10) ?? ""} onChange={(e) => set("arriveAt", `${e.target.value}T00:00`)} /></Field>
           <Field label="Terminal"><Input value={form.terminal ?? ""} onChange={(e) => set("terminal", e.target.value)} /></Field>
           <Field label="Seats"><Input value={form.seats ?? ""} onChange={(e) => set("seats", e.target.value)} placeholder="34A, 34B" /></Field>
           <Field label="PNR / confirmation"><Input value={form.confirmation ?? ""} onChange={(e) => set("confirmation", e.target.value)} className="font-mono uppercase" /></Field>
@@ -131,6 +131,18 @@ const LIVE_META: Record<FlightLive["status"], { label: string; tone: "ok" | "war
   cancelled: { label: "Cancelled", tone: "danger" },
   unknown: { label: "Unknown", tone: "neutral" },
 };
+
+function FlightTime({ manual, scheduled, actual, align = "left" }: { manual: string; scheduled?: string; actual?: string; align?: "left" | "right" }) {
+  const planned = scheduled ?? manual;
+  const actualDiffers = actual && (!planned || Math.abs(new Date(actual).getTime() - new Date(planned).getTime()) >= 60_000);
+  const display = actual && !actualDiffers ? actual : planned;
+  return (
+    <div className={align === "right" ? "text-right" : undefined}>
+      <p className={cn("text-xs", actualDiffers ? "text-muted line-through" : "text-muted")}>{fmtDateTime(display)}</p>
+      {actualDiffers && <p className="text-xs text-warn">{fmtDateTime(actual)}</p>}
+    </div>
+  );
+}
 
 function FlightCard({ flight, trip }: { flight: Flight; trip: Trip }) {
   const [edit, setEdit] = useState(false);
@@ -160,9 +172,9 @@ function FlightCard({ flight, trip }: { flight: Flight; trip: Trip }) {
         </div>
       </div>
       <div className="mt-3 flex items-center gap-3 rounded-xl bg-surface-2 p-3">
-        <div className="flex-1"><p className="text-2xl font-extrabold tracking-tight">{flight.from}</p><p className="text-xs text-muted">{fmtDateTime(flight.departAt)}</p>{(live?.actualDepart || live?.gate) && <p className="text-xs text-warn">{live.actualDepart && `Now ${fmtTime(live.actualDepart)}`}{live.gate && ` · Gate ${live.gate}`}</p>}</div>
+        <div className="flex-1"><p className="text-2xl font-extrabold tracking-tight">{flight.from}</p><FlightTime manual={flight.departAt} scheduled={live?.scheduledDepart} actual={live?.actualDepart} />{live?.gate && <p className="text-xs text-warn">Gate {live.gate}</p>}</div>
         <div className="flex flex-col items-center text-muted"><span className="text-[10px]">{flight.terminal ? `T${flight.terminal.replace(/^T/i, "")}` : ""}</span><div className="flex items-center gap-1"><span className="h-px w-8 bg-line" /><Plane size={14} /><span className="h-px w-8 bg-line" /></div>{flight.seats && <span className="text-[10px]">Seats {flight.seats}</span>}</div>
-        <div className="flex-1 text-right"><p className="text-2xl font-extrabold tracking-tight">{flight.to}</p><p className="text-xs text-muted">{fmtDateTime(flight.arriveAt)}</p>{live?.actualArrive && <p className="text-xs text-warn">Now {fmtTime(live.actualArrive)}</p>}</div>
+        <div className="flex-1 text-right"><p className="text-2xl font-extrabold tracking-tight">{flight.to}</p><FlightTime manual={flight.arriveAt} scheduled={live?.scheduledArrive} actual={live?.actualArrive} align="right" /></div>
       </div>
       <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-muted">
         <span className="flex items-center gap-1">PNR <span className="font-mono font-semibold text-fg">{flight.confirmation || "—"}</span>{flight.confirmation && <CopyBtn text={flight.confirmation} />}</span>

@@ -99,6 +99,8 @@ export type LiveFlightStatus = "scheduled" | "boarding" | "departed" | "landed" 
 export interface FlightLive {
   status: LiveFlightStatus;
   source: "aerodatabox" | "estimated";
+  scheduledDepart?: string;
+  scheduledArrive?: string;
   actualDepart?: string;
   actualArrive?: string;
   gate?: string;
@@ -135,8 +137,10 @@ export async function fetchFlightStatus(f: Flight): Promise<FlightLive> {
           const live: FlightLive = {
             status,
             source: "aerodatabox",
-            actualDepart: leg.departure?.revisedTime?.local ?? leg.departure?.actualTime?.local,
-            actualArrive: leg.arrival?.revisedTime?.local ?? leg.arrival?.predictedTime?.local,
+            scheduledDepart: leg.departure?.scheduledTime?.local,
+            scheduledArrive: leg.arrival?.scheduledTime?.local,
+            actualDepart: leg.departure?.actualTime?.local,
+            actualArrive: leg.arrival?.actualTime?.local,
             gate: leg.departure?.gate,
             terminal: leg.departure?.terminal,
             fetchedAt: Date.now(),
