@@ -1,4 +1,4 @@
-# Passport — architecture notes
+# Pack Rat — architecture notes
 
 Offline-first PWA for trip planning + an encrypted family document vault.
 Stack: React 19 · Vite · Tailwind v4 · Dexie (IndexedDB) · Firebase (optional) · dnd-kit · Open-Meteo · Frankfurter.

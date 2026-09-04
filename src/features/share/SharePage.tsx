@@ -19,7 +19,7 @@ export function SharePage() {
   }, [id, params]);
 
   if (data === undefined) return <div className="p-10 text-center text-muted">Loading itinerary…</div>;
-  if (!data) return <div className="p-10 text-center"><p className="font-bold">This itinerary link is invalid or has expired.</p><Link to="/" className="text-accent underline">Go to Passport</Link></div>;
+  if (!data) return <div className="p-10 text-center"><p className="font-bold">This itinerary link is invalid or has expired.</p><Link to="/" className="text-accent underline">Go to Pack Rat</Link></div>;
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-8">
@@ -58,7 +58,7 @@ export function SharePage() {
           </Card>
         ))}
       </div>
-      <p className="mt-8 text-center text-xs text-muted">Published with Passport · {fmtDate(new Date(data.publishedAt).toISOString().slice(0, 10))}</p>
+      <p className="mt-8 text-center text-xs text-muted">Published with Pack Rat · {fmtDate(new Date(data.publishedAt).toISOString().slice(0, 10))}</p>
     </div>
   );
 }

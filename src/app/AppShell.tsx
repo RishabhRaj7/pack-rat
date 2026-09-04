@@ -32,7 +32,7 @@ export function AppShell() {
       <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col border-r border-line bg-surface p-4 md:flex">
         <div className="mb-6 flex items-center gap-2.5 px-2">
           <img src="/icon.svg" alt="" className="h-9 w-9 rounded-xl" />
-          <div><p className="text-base font-extrabold leading-none tracking-tight">Passport</p><p className="mt-0.5 text-[11px] text-muted">Travel & document vault</p></div>
+          <div><p className="text-base font-extrabold leading-none tracking-tight">Pack Rat</p><p className="mt-0.5 text-[11px] text-muted">Travel & document vault</p></div>
         </div>
         <nav className="flex-1 space-y-1">
           {NAV.map((n) => (
@@ -50,7 +50,7 @@ export function AppShell() {
       <div className="flex min-w-0 flex-1 flex-col">
         {/* Top bar (mobile) */}
         <header className="sticky top-0 z-30 flex items-center justify-between border-b border-line bg-surface/80 px-4 py-3 backdrop-blur md:hidden">
-          <div className="flex items-center gap-2"><img src="/icon.svg" alt="" className="h-7 w-7 rounded-lg" /><span className="font-extrabold tracking-tight">Passport</span></div>
+          <div className="flex items-center gap-2"><img src="/icon.svg" alt="" className="h-7 w-7 rounded-lg" /><span className="font-extrabold tracking-tight">Pack Rat</span></div>
           <div className="flex items-center gap-3"><SyncIndicator /><button onClick={lock} className="rounded-lg p-1.5 text-muted hover:bg-surface-2" aria-label="Lock"><Lock size={16} /></button></div>
         </header>
 

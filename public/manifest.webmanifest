@@ -1,6 +1,6 @@
 {
-  "name": "Passport — Travel & Document Vault",
-  "short_name": "Passport",
+  "name": "Pack Rat — Travel & Document Vault",
+  "short_name": "Pack Rat",
   "description": "Personal travel planner and encrypted family document vault. Works offline.",
   "start_url": "/",
   "scope": "/",

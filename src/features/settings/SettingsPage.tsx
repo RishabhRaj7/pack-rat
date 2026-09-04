@@ -55,7 +55,7 @@ export function SettingsPage() {
         <Row label="Theme" hint="Dark mode uses true black for AMOLED screens.">
           <Segmented value={mode} onChange={setMode} options={[{ value: "light", label: <span className="flex items-center gap-1"><Sun size={13} /> Light</span> }, { value: "dark", label: <span className="flex items-center gap-1"><Moon size={13} /> Dark · AMOLED</span> }, { value: "system", label: <span className="flex items-center gap-1"><MonitorSmartphone size={13} /> Auto</span> }]} />
         </Row>
-        {installEvt && <Row label="Install app" hint="Add Passport to your home screen for offline access."><Button size="sm" variant="secondary" onClick={() => installEvt.prompt()}><Smartphone size={14} /> Install</Button></Row>}
+        {installEvt && <Row label="Install app" hint="Add Pack Rat to your home screen for offline access."><Button size="sm" variant="secondary" onClick={() => installEvt.prompt()}><Smartphone size={14} /> Install</Button></Row>}
       </Section>
 
       <Section title="Family members" icon={<Users size={18} />}>
@@ -109,7 +109,7 @@ export function SettingsPage() {
         <Row label="Erase everything" hint="Deletes all local data, PIN and settings on this device."><Button size="sm" variant="danger" onClick={() => confirm("Erase ALL data on this device? This cannot be undone.") && wipeAllData()}><Trash2 size={14} /> Erase</Button></Row>
       </Section>
 
-      <p className="pb-4 text-center text-xs text-muted">Passport · offline-first PWA · data encrypted on-device</p>
+      <p className="pb-4 text-center text-xs text-muted">Pack Rat · offline-first PWA · data encrypted on-device</p>
 
       {addMember && <MemberForm open onClose={() => setAddMember(false)} />}
       {editMember && <MemberForm open onClose={() => setEditMember(null)} member={members.find((m) => m.id === editMember)} />}
