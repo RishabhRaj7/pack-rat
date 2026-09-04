@@ -78,7 +78,7 @@ export function SettingsPage() {
         </Row>
         <Row label="Auto-lock" hint="Lock after the app has been in the background for…">
           <Select value={String(lock.config?.autoLockMinutes ?? 5)} onChange={(e) => lock.setAutoLockMinutes(Number(e.target.value))} className="w-36 py-1.5">
-            <option value="0">Immediately</option><option value="1">1 minute</option><option value="5">5 minutes</option><option value="15">15 minutes</option><option value="60">1 hour</option>
+            <option value="0">Immediately</option><option value="1">1 minute</option><option value="5">5 minutes</option><option value="15">15 minutes</option><option value="60">1 hour</option><option value="10080">7 days</option><option value="43200">30 days</option>
           </Select>
         </Row>
         <Row label="Change PIN" hint="Re-encrypts all sensitive fields with the new PIN."><Button size="sm" variant="outline" onClick={() => setPinModal(true)}><KeyRound size={14} /> Change</Button></Row>
