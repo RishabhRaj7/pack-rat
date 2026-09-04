@@ -40,7 +40,13 @@ No code needed: press **+ New Trip**, or add a record shaped like `data/seed.ts`
 
 ## Security model
 - Sensitive fields (`numberEnc`, `insurancePolicyEnc`) are encrypted client-side; Firestore never sees plaintext.
-- The PIN is never stored; only a salt + verifier. Losing the PIN means encrypted fields are unrecoverable (by design).
+- The AES key is derived from the PIN alone (PBKDF2, 310k iterations, fixed app-wide salt), so entering the
+  same PIN on any device yields the same key — there is no per-device key and nothing to "merge".
+- The PIN is never stored or synced; the cloud only holds a verifier (AES-GCM of a constant) so a new device can
+  check the PIN before it starts encrypting, plus the list of legacy per-device salts (public, non-secret).
+- Devices still on the old per-device salt are migrated on their next PIN unlock: old ciphertext is re-encrypted with
+  the shared key and pushed; old keys are kept in memory as read fallbacks for records that arrive later.
+- Losing the PIN means encrypted fields are unrecoverable (by design).
 - Biometric unlock = WebAuthn assertion gates unwrapping the master key with a non-extractable device key.
 - Published itineraries exclude documents, confirmations, and ID numbers.
 

@@ -22,7 +22,12 @@ function Gate() {
   useEffect(() => {
     if (state === "unlocked") void seedSingapore();
   }, [state]);
-  useEffect(() => window.scrollTo(0, 0), [location.pathname]);
+  // NOTE: keep a block body here. In recent Chromium builds `window.scrollTo()` returns a
+  // Promise; returning it from an effect makes React treat it as the cleanup function and
+  // crash with "… is not a function" on the first navigation after unlock.
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [location.pathname]);
 
   if (state === "loading") return <div className="flex min-h-full items-center justify-center text-sm text-muted">Opening vault…</div>;
   if (state !== "unlocked") return <LockScreen />;
@@ -45,7 +50,9 @@ function Gate() {
 }
 
 export default function App() {
-  useEffect(() => initSync(), []);
+  useEffect(() => {
+    initSync();
+  }, []);
   return (
     <HashRouter>
       <LockProvider>

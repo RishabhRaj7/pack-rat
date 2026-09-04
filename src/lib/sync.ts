@@ -4,9 +4,10 @@
  *  - Remote changes stream in via onSnapshot and are applied with last-write-wins on `updatedAt`.
  *  - Deletes are tombstones ({ deleted: true }) so they propagate across devices.
  *  - Attachment blobs are uploaded to Storage; only metadata + download URL go to Firestore.
- *  - The vault *key config* (PBKDF2 salt + verifier — never the PIN) is shared at
- *    users/{uid}/meta/vault so every device derives the same AES key from the same PIN.
- *    Without this, ID numbers encrypted on one device are unreadable on another.
+ *  - The vault key is derived from the PIN alone (fixed app salt), so the same PIN gives the
+ *    same AES key on every device. users/{uid}/meta/vault only carries a PIN *verifier* (so a
+ *    new device can check the PIN before it starts encrypting) plus the list of legacy
+ *    per-device salts so old ciphertext can still be read and migrated. Never the PIN.
  *  - Every push / pull is recorded in `syncLog` and mirrored in the store below so the UI
  *    can show exactly what is synced, pending, or in flight.
  */
@@ -14,7 +15,7 @@ import { useSyncExternalStore } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db, SYNCED_TABLES, TABLE_LABELS, syncKey, type SyncedTable, type Attachment, type SyncQueueItem, type SyncLogRow } from "./db";
 import { getFirebase, isFirebaseConfigured, watchAuth, type User } from "./firebase";
-import { getLockConfig, sameVaultKey, vaultKeyOf, type VaultKeyConfig } from "./crypto";
+import { getLockConfig, vaultKeyOf, isSharedScheme, collectLegacySalts, type VaultKeyConfig } from "./crypto";
 
 export interface SyncActivity {
   table: SyncedTable;
@@ -32,9 +33,9 @@ export interface PullActivity {
 
 export type VaultKeyStatus =
   | "unknown" // not signed in / not checked yet
-  | "none" // nothing in the cloud yet (this device will publish its own)
-  | "match" // this device uses the shared key
-  | "mismatch"; // cloud uses a different salt → ID numbers from other devices won't decrypt
+  | "none" // nothing in the cloud yet (this device will publish its verifier)
+  | "shared" // cloud verifier is on the shared (same-PIN-everywhere) scheme
+  | "legacy"; // cloud still holds an old per-device salt; it is upgraded automatically
 
 export interface SyncState {
   configured: boolean;
@@ -250,47 +251,63 @@ function stopRemoteListeners() {
   unsubscribers.splice(0).forEach((u) => u());
 }
 
-/* ---------------- Vault key (salt + verifier) sharing ---------------- */
+/* ---------------- Vault key (verifier + legacy salts) sharing ---------------- */
 
 const VAULT_DOC = ["meta", "vault"] as const;
 
-/** Publish this device's key config so other devices can derive the same key from the same PIN. */
+function normalizeRemote(d: Partial<VaultKeyConfig> | undefined): VaultKeyConfig | null {
+  if (!d || !d.saltB64 || !d.verifierB64) return null;
+  return { saltB64: d.saltB64, verifierB64: d.verifierB64, iterations: d.iterations ?? 310_000, keyCreatedAt: d.keyCreatedAt ?? 0, legacySalts: Array.isArray(d.legacySalts) ? d.legacySalts : [] };
+}
+
+const statusOf = (remote: VaultKeyConfig | null): VaultKeyStatus => (!remote ? "none" : isSharedScheme(remote) ? "shared" : "legacy");
+
+/**
+ * Publish this device's PIN verifier (shared scheme) so a new device can check the PIN.
+ * The union of all legacy salts is kept so every device can still read + migrate old data.
+ * Only a shared-scheme config is ever published; legacy configs are migrated on unlock first.
+ */
 export async function publishVaultKey(force = false) {
   const fb = getFirebase();
   const cfg = await getLockConfig();
-  if (!fb || !state.user || !cfg) return;
+  if (!fb || !state.user || !cfg || !isSharedScheme(cfg)) return;
   const { doc, setDoc, getDoc } = await import("firebase/firestore");
   const ref = doc(fb.firestore, "users", state.user.uid, ...VAULT_DOC);
-  if (!force) {
-    const existing = await getDoc(ref);
-    if (existing.exists()) return; // never overwrite silently — the merge flow handles conflicts
+  const existing = normalizeRemote((await getDoc(ref)).data() as Partial<VaultKeyConfig> | undefined);
+  const legacySalts = collectLegacySalts(cfg, existing);
+  const remoteSalts = new Set(existing?.legacySalts ?? []);
+  const saltsChanged = legacySalts.some((s) => !remoteSalts.has(s));
+  if (existing && isSharedScheme(existing) && !force && !saltsChanged) {
+    setState({ vaultKey: { status: "shared", remote: existing, checkedAt: Date.now() } });
+    return;
   }
-  const payload: VaultKeyConfig = { ...vaultKeyOf(cfg), keyCreatedAt: cfg.keyCreatedAt ?? Date.now() };
+  const payload: VaultKeyConfig = {
+    ...vaultKeyOf(cfg),
+    // Keep the newest verifier unless we are forcing (PIN change) or the cloud is still legacy.
+    verifierB64: existing && isSharedScheme(existing) && !force ? existing.verifierB64 : cfg.verifierB64,
+    keyCreatedAt: existing && isSharedScheme(existing) && !force ? existing.keyCreatedAt : cfg.keyCreatedAt ?? Date.now(),
+    legacySalts,
+  };
   await setDoc(ref, { ...payload, updatedAt: Date.now() });
-  setState({ vaultKey: { status: "match", remote: payload, checkedAt: Date.now() } });
+  setState({ vaultKey: { status: "shared", remote: payload, checkedAt: Date.now() } });
 }
 
 /** One-off read (used by the first-run PIN screen when the browser is already signed in). */
 export async function fetchRemoteVaultKey(): Promise<VaultKeyConfig | null> {
   const fb = getFirebase();
-  if (!fb || !state.user) return null;
+  if (!fb || !state.user) return state.vaultKey.remote;
   const { doc, getDoc } = await import("firebase/firestore");
   const snap = await getDoc(doc(fb.firestore, "users", state.user.uid, ...VAULT_DOC));
-  if (!snap.exists()) return null;
-  const d = snap.data() as VaultKeyConfig;
-  return { saltB64: d.saltB64, verifierB64: d.verifierB64, iterations: d.iterations, keyCreatedAt: d.keyCreatedAt ?? 0 };
+  return normalizeRemote(snap.data() as Partial<VaultKeyConfig> | undefined);
 }
 
+/** Re-evaluate the cloud verifier against the local config and publish if the cloud is missing / behind. */
 export async function recheckVaultKey() {
+  if (!state.user) return;
   const local = await getLockConfig();
   const remote = state.vaultKey.remote;
-  if (!state.user) return;
-  if (!remote) {
-    setState({ vaultKey: { status: "none", remote: null, checkedAt: Date.now() } });
-    if (local) await publishVaultKey();
-    return;
-  }
-  setState({ vaultKey: { status: local && sameVaultKey(local, remote) ? "match" : local ? "mismatch" : "unknown", remote, checkedAt: Date.now() } });
+  setState({ vaultKey: { status: statusOf(remote), remote, checkedAt: Date.now() } });
+  if (local && isSharedScheme(local)) await publishVaultKey(!remote || !isSharedScheme(remote)).catch(() => undefined);
 }
 
 async function watchRemoteVaultKey(uid: string) {
@@ -298,15 +315,11 @@ async function watchRemoteVaultKey(uid: string) {
   if (!fb) return () => {};
   const { doc, onSnapshot } = await import("firebase/firestore");
   return onSnapshot(doc(fb.firestore, "users", uid, ...VAULT_DOC), async (snap) => {
-    if (!snap.exists()) {
-      setState({ vaultKey: { status: "none", remote: null, checkedAt: Date.now() } });
-      await publishVaultKey();
-      return;
-    }
-    const d = snap.data() as VaultKeyConfig;
-    const remote: VaultKeyConfig = { saltB64: d.saltB64, verifierB64: d.verifierB64, iterations: d.iterations, keyCreatedAt: d.keyCreatedAt ?? 0 };
+    const remote = normalizeRemote(snap.data() as Partial<VaultKeyConfig> | undefined);
+    setState({ vaultKey: { status: statusOf(remote), remote, checkedAt: Date.now() } });
     const local = await getLockConfig();
-    setState({ vaultKey: { status: local && sameVaultKey(local, remote) ? "match" : local ? "mismatch" : "unknown", remote, checkedAt: Date.now() } });
+    // Cloud missing or still on the old scheme while this device is already shared → upgrade it.
+    if (local && isSharedScheme(local) && (!remote || !isSharedScheme(remote))) await publishVaultKey(true).catch(() => undefined);
   });
 }
 

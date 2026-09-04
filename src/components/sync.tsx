@@ -1,11 +1,10 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
-import { Cloud, CloudOff, CloudUpload, CloudDownload, RefreshCw, Clock, AlertTriangle, Check, KeyRound, X, HardDrive, ChevronRight } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Cloud, CloudOff, CloudUpload, CloudDownload, RefreshCw, Clock, AlertTriangle, Check, KeyRound, HardDrive, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { TABLE_LABELS, type SyncedTable } from "@/lib/db";
 import { flushQueue, useRecordSync, useSyncStatus, type RecordSyncStatus, type SyncState } from "@/lib/sync";
-import { useLock } from "@/features/lock/LockProvider";
-import { Button, Field, Input, Modal } from "./ui";
+import { Button, Modal } from "./ui";
 
 /* ---------------- helpers ---------------- */
 
@@ -72,7 +71,6 @@ export function describeSync(s: SyncState): { label: string; detail: string | nu
     return { label: `Syncing${p}`, detail: `${s.current.op === "delete" ? "Removing" : "Uploading"} ${s.current.label}`, icon: CloudUpload, tone: "accent" };
   }
   if (s.pulling.length) return { label: "Receiving…", detail: `Downloading ${s.pulling.map((t) => TABLE_LABELS[t].toLowerCase() + "s").join(", ")}`, icon: CloudDownload, tone: "accent" };
-  if (s.vaultKey.status === "mismatch") return { label: "Merge needed", detail: "Other device uses a different vault PIN/key — ID numbers can't be read until merged", icon: KeyRound, tone: "warn" };
   if (s.error && s.pending) return { label: "Sync failed", detail: s.error, icon: AlertTriangle, tone: "danger" };
   if (s.pending) return { label: `${s.pending} pending`, detail: `${s.pending} change${s.pending === 1 ? "" : "s"} waiting to upload`, icon: Clock, tone: "warn" };
   return { label: "Synced", detail: s.lastSyncedAt ? `Everything is up to date · ${timeAgo(s.lastSyncedAt)}` : "Everything is up to date", icon: Cloud, tone: "ok" };
@@ -120,7 +118,6 @@ export function SyncPanel({ open, onClose }: { open: boolean; onClose: () => voi
   const s = useSyncStatus();
   const d = describeSync(s);
   useTick(5000);
-  const [merge, setMerge] = useState(false);
   const failing = s.queue.filter((q) => q.error);
   return (
     <Modal open={open} onClose={onClose} title="Sync status" size="md">
@@ -141,11 +138,10 @@ export function SyncPanel({ open, onClose }: { open: boolean; onClose: () => voi
           </div>
         )}
 
-        {s.vaultKey.status === "mismatch" && (
-          <div className="bg-warn-soft/60 px-4 py-3">
-            <p className="flex items-center gap-2 text-sm font-bold text-warn"><KeyRound size={14} /> Vault keys differ between devices</p>
-            <p className="mt-1 text-xs text-muted">This device created its own encryption salt, so ID / card / policy numbers encrypted on your other device show as unreadable here (and vice-versa). Enter the PIN you use on the other device to merge — everything is re-encrypted with one shared key.</p>
-            <Button size="sm" className="mt-2" onClick={() => setMerge(true)}><KeyRound size={14} /> Merge vault keys</Button>
+        {s.user && (
+          <div className="flex items-start gap-2 px-4 py-3 text-xs text-muted">
+            <KeyRound size={14} className="mt-0.5 shrink-0 text-accent" />
+            <p><b className="text-fg">One PIN, every device.</b> ID, card and policy numbers are encrypted with a key derived from your PIN alone — enter the same PIN on each device and everything decrypts. Nothing to merge.</p>
           </div>
         )}
 
@@ -186,80 +182,18 @@ export function SyncPanel({ open, onClose }: { open: boolean; onClose: () => voi
           <span className="text-muted">{s.online ? "Online" : "Offline"}</span>
         </div>
       </div>
-      <MergeVaultKeyModal open={merge} onClose={() => setMerge(false)} />
     </Modal>
   );
 }
 
-/* ---------------- Vault key merge ---------------- */
+/* ---------------- Vault key ---------------- */
 
-export function MergeVaultKeyModal({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const s = useSyncStatus();
-  const lock = useLock();
-  const [pin, setPin] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [done, setDone] = useState<{ rewritten: number; unreadable: number } | null>(null);
-  const remote = s.vaultKey.remote;
-  const submit = async () => {
-    if (!remote) return;
-    setBusy(true);
-    setError(null);
-    try {
-      setDone(await lock.adoptRemoteKey(pin, remote));
-      setPin("");
-    } catch (e) {
-      setError((e as Error).message);
-    }
-    setBusy(false);
-  };
-  return (
-    <Modal open={open} onClose={onClose} title="Merge vault keys" size="sm" footer={done ? <Button onClick={onClose}>Done</Button> : <><Button variant="ghost" onClick={onClose}>Cancel</Button><Button disabled={pin.length !== 6 || !remote} loading={busy} onClick={submit}><KeyRound size={14} /> Merge</Button></>}>
-      {done ? (
-        <div className="space-y-2 text-sm">
-          <p className="flex items-center gap-2 font-semibold text-ok"><Check size={16} /> This device now uses the shared vault key.</p>
-          <p className="text-muted">{done.rewritten} field{done.rewritten === 1 ? "" : "s"} re-encrypted and queued for sync.{done.unreadable ? ` ${done.unreadable} could not be read with either key and were left unchanged.` : ""}</p>
-          <p className="text-xs text-muted">Biometric unlock was reset — re-enable it under Settings → App lock.</p>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          <p className="text-sm text-muted">Enter the 6-digit PIN you use on your <b>other</b> device{remote?.keyCreatedAt ? ` (key created ${new Date(remote.keyCreatedAt).toLocaleDateString()})` : ""}. Your PIN is never uploaded — only the public salt is shared so both devices derive the same key.</p>
-          <Field label="PIN from other device"><Input type="password" inputMode="numeric" maxLength={6} value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))} autoFocus /></Field>
-          {error && <p className="flex items-center gap-1 text-xs text-danger"><X size={12} /> {error}</p>}
-          <p className="text-xs text-muted">If both devices use the same PIN, that's the one to enter. Everything encrypted on this device will be re-encrypted so it also opens on your other devices.</p>
-        </div>
-      )}
-    </Modal>
-  );
-}
-
-/** Persistent banner under the header while vault keys differ. Also opens automatically via /settings?merge=1. */
+/**
+ * Kept for layout compatibility. The vault key is now derived from the PIN alone, so there is
+ * nothing to merge between devices — the same PIN unlocks the same data everywhere.
+ */
 export function VaultKeyBanner() {
-  const s = useSyncStatus();
-  const location = useLocation();
-  const navigate = useNavigate();
-  const [open, setOpen] = useState(false);
-  const autoOpened = useRef(false);
-  useEffect(() => {
-    if (location.search.includes("merge=1") && !autoOpened.current) {
-      autoOpened.current = true;
-      setOpen(true);
-      navigate({ pathname: location.pathname, search: "" }, { replace: true });
-    }
-  }, [location, navigate]);
-  if (s.vaultKey.status !== "mismatch" && !open) return null;
-  return (
-    <>
-      {s.vaultKey.status === "mismatch" && (
-        <div className="mb-4 flex flex-wrap items-center gap-3 rounded-2xl border border-warn/40 bg-warn-soft px-4 py-3 text-sm">
-          <KeyRound size={16} className="shrink-0 text-warn" />
-          <p className="min-w-0 flex-1"><b>ID numbers from your other device can&apos;t be shown yet.</b> <span className="text-muted">Each device created its own encryption key — merge them once and everything syncs in the clear.</span></p>
-          <Button size="sm" onClick={() => setOpen(true)}>Merge vault keys</Button>
-        </div>
-      )}
-      <MergeVaultKeyModal open={open} onClose={() => setOpen(false)} />
-    </>
-  );
+  return null;
 }
 
 /* ---------------- Mouse-friendly horizontal strip ---------------- */

@@ -107,9 +107,9 @@ export function LockScreen() {
           <h1 className="text-xl font-extrabold tracking-tight">{joinExisting ? "Enter your existing vault PIN" : isSetup ? (stage === "enter" ? "Create your vault PIN" : "Confirm your PIN") : "Pack Rat is locked"}</h1>
           <p className="mt-1.5 text-sm text-muted">
             {joinExisting
-              ? `You're signed in as ${sync.user?.email ?? "your account"}. Enter the PIN you use on your other device so synced ID numbers can be decrypted here.`
+              ? `You're signed in as ${sync.user?.email ?? "your account"}. Enter the PIN you use on your other device — the same PIN unlocks the same data everywhere.`
               : isSetup
-              ? "Your PIN encrypts ID numbers, loyalty numbers and policy numbers. It is never stored — if you forget it, encrypted fields cannot be recovered."
+              ? "Your PIN encrypts ID numbers, loyalty numbers and policy numbers. Use the same PIN on all your devices and everything syncs and decrypts automatically. It is never stored — if you forget it, encrypted fields cannot be recovered."
               : "Enter your 6-digit PIN to view your documents and trips."}
           </p>
         </div>

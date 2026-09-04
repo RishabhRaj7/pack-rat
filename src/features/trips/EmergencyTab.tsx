@@ -22,7 +22,9 @@ export function EmergencyTab({ trip }: { trip: Trip }) {
   const [edit, setEdit] = useState(false);
   const [form, setForm] = useState<EmergencyInfo>(trip.emergency ?? {});
   const { plain: policy, setPlain: setPolicy, ready, unreadable, keepIfUnreadable } = useDecrypted(trip.emergency?.insurancePolicyEnc);
-  useEffect(() => setForm(trip.emergency ?? {}), [trip.emergency]);
+  useEffect(() => {
+    setForm(trip.emergency ?? {});
+  }, [trip.emergency]);
   const set = (k: keyof EmergencyInfo, v: string) => setForm((f) => ({ ...f, [k]: v }));
   const e = trip.emergency ?? {};
 

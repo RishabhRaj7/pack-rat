@@ -9,7 +9,7 @@ export interface BackupFile {
   exportedAt: number;
   includesAttachments: boolean;
   tables: Record<string, unknown[]>;
-  lock?: unknown; // salt + verifier so encrypted fields remain decryptable with the same PIN
+  lock?: unknown; // verifier + legacy salts; encrypted fields decrypt anywhere with the same PIN
 }
 
 /** Export everything. Encrypted fields stay encrypted — you need the same PIN to read them after restore. */

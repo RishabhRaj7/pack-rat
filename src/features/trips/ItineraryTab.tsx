@@ -39,7 +39,9 @@ function DayTitleInput({ day }: { day: ItineraryDay }) {
 function DayPrepPanel({ trip, day, forecast, stale }: { trip: Trip; day: ItineraryDay; forecast?: DayForecast; stale: boolean }) {
   const [prep, setPrep] = useState(day.prep ?? {});
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => setPrep(day.prep ?? {}), [day.id]);
+  useEffect(() => {
+    setPrep(day.prep ?? {});
+  }, [day.id]);
   const save = (patch: Partial<typeof prep>) => {
     const next = { ...prep, ...patch };
     setPrep(next);

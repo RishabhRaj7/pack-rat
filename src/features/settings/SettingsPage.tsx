@@ -7,7 +7,7 @@ import { useLock } from "@/features/lock/LockProvider";
 import { useMembers } from "@/features/family/hooks";
 import { MemberForm } from "@/features/family/MemberForm";
 import { useSyncStatus, flushQueue } from "@/lib/sync";
-import { describeSync, timeAgo, SyncPanel, MergeVaultKeyModal } from "@/components/sync";
+import { describeSync, timeAgo, SyncPanel } from "@/components/sync";
 import { isFirebaseConfigured, signInWithGoogle, signOut } from "@/lib/firebase";
 import { seedSingapore } from "@/data/seed";
 import { exportBackup, importBackup, wipeAllData } from "./backup";
@@ -40,7 +40,6 @@ export function SettingsPage() {
   const [msg, setMsg] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const [syncPanel, setSyncPanel] = useState(false);
-  const [mergeModal, setMergeModal] = useState(false);
   const syncInfo = describeSync(sync);
   const [installEvt, setInstallEvt] = useState<(Event & { prompt: () => Promise<void> }) | null>(null);
   useEffect(() => {
@@ -100,8 +99,8 @@ export function SettingsPage() {
                 <Button size="sm" variant="outline" onClick={() => setSyncPanel(true)}>Details</Button>
               </div>
             </Row>
-            <Row label="Vault key" hint={sync.vaultKey.status === "match" ? "This device shares the encryption key with your other devices — ID numbers sync in the clear." : sync.vaultKey.status === "mismatch" ? "This device uses a different key than your other devices. ID / card / policy numbers from them can't be read until you merge." : sync.vaultKey.status === "none" ? "No shared key in the cloud yet — this device's key will be published." : "Checking…"}>
-              {sync.vaultKey.status === "mismatch" ? <Button size="sm" onClick={() => setMergeModal(true)}><KeyRound size={14} /> Merge</Button> : <Badge tone={sync.vaultKey.status === "match" ? "ok" : "neutral"}>{sync.vaultKey.status === "match" ? "Shared" : sync.vaultKey.status === "none" ? "Publishing" : "—"}</Badge>}
+            <Row label="Vault key" hint={sync.vaultKey.status === "shared" ? "Derived from your PIN alone — enter the same PIN on every device and all ID / card / policy numbers decrypt. Nothing to merge." : sync.vaultKey.status === "legacy" ? "Upgrading the cloud record to the shared same-PIN key…" : sync.vaultKey.status === "none" ? "No PIN check in the cloud yet — this device will publish one (never the PIN itself)." : "Checking…"}>
+              <Badge tone={sync.vaultKey.status === "shared" ? "ok" : "neutral"}>{sync.vaultKey.status === "shared" ? "Same PIN everywhere" : sync.vaultKey.status === "none" ? "Publishing" : sync.vaultKey.status === "legacy" ? "Upgrading" : "—"}</Badge>
             </Row>
             {sync.pending > 0 && <Row label={`${sync.pending} change${sync.pending === 1 ? "" : "s"} not synced yet`} hint={sync.queue.slice(0, 3).map((q) => q.label ?? q.table).join(" · ") + (sync.pending > 3 ? " · …" : "")}><Badge tone="warn">Pending</Badge></Row>}
             {sync.lastSyncedAt && <Row label="Last synced" hint={new Date(sync.lastSyncedAt).toLocaleString()}><Badge tone="ok">{timeAgo(sync.lastSyncedAt)}</Badge></Row>}
@@ -131,7 +130,6 @@ export function SettingsPage() {
 
       {addMember && <MemberForm open onClose={() => setAddMember(false)} />}
       <SyncPanel open={syncPanel} onClose={() => setSyncPanel(false)} />
-      <MergeVaultKeyModal open={mergeModal} onClose={() => setMergeModal(false)} />
       {editMember && <MemberForm open onClose={() => setEditMember(null)} member={members.find((m) => m.id === editMember)} />}
       <Modal open={pinModal} onClose={() => setPinModal(false)} title="Change PIN" size="sm" footer={<><Button variant="ghost" onClick={() => setPinModal(false)}>Cancel</Button><Button disabled={pin.length !== 6 || pin !== pin2} loading={busy} onClick={async () => { setBusy(true); try { await lock.changePin(pin); setPinModal(false); setPin(""); setPin2(""); flash("PIN changed and data re-encrypted"); } catch (e) { alert((e as Error).message); } setBusy(false); }}>Update PIN</Button></>}>
         <div className="space-y-3">

@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
 import { Copy, Check, Eye, EyeOff, KeyRound } from "lucide-react";
 import { useLock } from "./LockProvider";
 import { copyToClipboard, cn } from "@/lib/utils";
@@ -41,14 +40,16 @@ export function SecretField({ value, className, mono = true, revealByDefault = f
 
   if (!value) return <span className="text-muted">—</span>;
 
-  // Encrypted on another device with a different PIN/salt → cannot be shown until keys are merged.
+  // Encrypted with a different PIN (or with an old per-device key we have not seen yet).
+  // The key is derived from the PIN alone, so locking and unlocking with the PIN used on the
+  // other device is all that is needed — legacy ciphertext is converted automatically.
   if (status === "unreadable") {
     return (
-      <span className={cn("inline-flex flex-wrap items-center gap-1.5 text-xs", className)} title="This value was encrypted with a different vault key. Open Settings → Cloud sync → Merge vault keys.">
+      <span className={cn("inline-flex flex-wrap items-center gap-1.5 text-xs", className)} title="This value was encrypted with a different PIN. Lock the app and unlock it with the PIN you use on your other device.">
         <span className={cn("tracking-wider text-muted", mono && "font-mono text-[13px]")}>••••••</span>
-        <Link to="/settings?merge=1" className="inline-flex items-center gap-1 rounded-full bg-warn-soft px-2 py-0.5 font-semibold text-warn hover:brightness-95">
-          <KeyRound size={11} /> Encrypted with another device&apos;s PIN — merge
-        </Link>
+        <span className="inline-flex items-center gap-1 rounded-full bg-warn-soft px-2 py-0.5 font-semibold text-warn">
+          <KeyRound size={11} /> Encrypted with a different PIN — unlock with that PIN
+        </span>
       </span>
     );
   }

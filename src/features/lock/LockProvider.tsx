@@ -1,6 +1,24 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { getLockConfig, setupPin, setupPinFromRemote, adoptRemoteVaultKey, unlockWithPin, unlockWithBiometric, biometricSupported, enableBiometric, disableBiometric, changePin, setAutoLock, type LockConfig, type VaultKeyConfig, encryptString, decryptString } from "@/lib/crypto";
-import { publishVaultKey, recheckVaultKey, requestFlush } from "@/lib/sync";
+import {
+  getLockConfig,
+  setupPin,
+  setupPinFromRemote,
+  unlockWithPin,
+  unlockWithBiometric,
+  biometricSupported,
+  enableBiometric,
+  disableBiometric,
+  changePin,
+  setAutoLock,
+  encryptString,
+  decryptWithAny,
+  reencryptAll,
+  deriveLegacyKeys,
+  collectLegacySalts,
+  type LockConfig,
+  type VaultKeyConfig,
+} from "@/lib/crypto";
+import { getSyncState, publishVaultKey, recheckVaultKey, requestFlush, useSyncStatus } from "@/lib/sync";
 
 type LockState = "loading" | "setup" | "locked" | "unlocked";
 
@@ -10,10 +28,8 @@ interface LockCtx {
   config: LockConfig | null;
   biometricAvailable: boolean;
   setup: (pin: string) => Promise<void>;
-  /** First run on a signed-in device: use the shared salt so synced ID numbers decrypt. Returns false if the PIN doesn't match. */
+  /** First run on a signed-in device: check the PIN against the cloud verifier first. Returns false if the PIN doesn't match. */
   setupFromRemote: (pin: string, remote: VaultKeyConfig) => Promise<boolean>;
-  /** Switch this device to the vault key used by other devices and re-encrypt local data. */
-  adoptRemoteKey: (pin: string, remote: VaultKeyConfig) => Promise<{ rewritten: number; unreadable: number }>;
   unlockPin: (pin: string) => Promise<boolean>;
   unlockBiometric: () => Promise<boolean>;
   lock: () => void;
@@ -34,6 +50,10 @@ export function LockProvider({ children }: { children: ReactNode }) {
   const [config, setConfig] = useState<LockConfig | null>(null);
   const [biometricAvailable, setBio] = useState(false);
   const hiddenAt = useRef<number | null>(null);
+  // Keys from the old per-device scheme (derived from the same PIN). Only used to read
+  // not-yet-migrated ciphertext; everything readable with them is re-encrypted with `key`.
+  const fallbackKeys = useRef<CryptoKey[]>([]);
+  const sync = useSyncStatus();
 
   const refresh = useCallback(async () => {
     const cfg = await getLockConfig();
@@ -49,11 +69,11 @@ export function LockProvider({ children }: { children: ReactNode }) {
 
   const lock = useCallback(() => {
     setKey(null);
+    fallbackKeys.current = [];
     setState((s) => (s === "setup" ? s : "locked"));
   }, []);
 
   // Auto-lock when the app has been in the background longer than the configured timeout.
-  // "Immediately" (0) locks as soon as the tab is hidden; previously 0 never locked at all.
   useEffect(() => {
     const onVis = () => {
       if (document.visibilityState === "hidden") hiddenAt.current = Date.now();
@@ -67,6 +87,26 @@ export function LockProvider({ children }: { children: ReactNode }) {
     return () => document.removeEventListener("visibilitychange", onVis);
   }, [state, config, lock]);
 
+  // Convert any legacy ciphertext (encrypted under an old per-device salt) to the shared key.
+  // Runs right after unlock and again whenever new records arrive from other devices.
+  const converting = useRef(false);
+  const convertLegacy = useCallback(async (k: CryptoKey) => {
+    if (!fallbackKeys.current.length || converting.current) return;
+    converting.current = true;
+    try {
+      const r = await reencryptAll(fallbackKeys.current, k);
+      if (r.rewritten) requestFlush();
+    } catch {
+      /* best effort */
+    } finally {
+      converting.current = false;
+    }
+  }, []);
+  const lastPullAt = sync.lastPull?.at ?? null;
+  useEffect(() => {
+    if (state === "unlocked" && key) void convertLegacy(key);
+  }, [state, key, lastPullAt, convertLegacy]);
+
   const value = useMemo<LockCtx>(
     () => ({
       state,
@@ -77,6 +117,7 @@ export function LockProvider({ children }: { children: ReactNode }) {
       lock,
       setup: async (pin) => {
         const k = await setupPin(pin);
+        fallbackKeys.current = [];
         setKey(k);
         setConfig(await getLockConfig());
         setState("unlocked");
@@ -85,31 +126,33 @@ export function LockProvider({ children }: { children: ReactNode }) {
       setupFromRemote: async (pin, remote) => {
         const k = await setupPinFromRemote(pin, remote);
         if (!k) return false;
+        // Same PIN, so the other devices' legacy keys are derivable — keep them for reading old records.
+        fallbackKeys.current = await deriveLegacyKeys(pin, collectLegacySalts(remote));
         setKey(k);
         setConfig(await getLockConfig());
         setState("unlocked");
         void recheckVaultKey().catch(() => undefined);
         return true;
       },
-      adoptRemoteKey: async (pin, remote) => {
-        const r = await adoptRemoteVaultKey(key, pin, remote);
+      unlockPin: async (pin) => {
+        const r = await unlockWithPin(pin, getSyncState().vaultKey.remote);
+        if (!r) return false;
+        fallbackKeys.current = r.fallbackKeys;
         setKey(r.key);
         setConfig(await getLockConfig());
-        await recheckVaultKey().catch(() => undefined);
-        requestFlush();
-        return { rewritten: r.rewritten, unreadable: r.unreadable };
-      },
-      unlockPin: async (pin) => {
-        const k = await unlockWithPin(pin);
-        if (!k) return false;
-        setKey(k);
         setState("unlocked");
+        if (r.migrated) {
+          // This device just moved to the shared key: tell the cloud and push re-encrypted rows.
+          void publishVaultKey(true).catch(() => undefined);
+          requestFlush();
+        } else void recheckVaultKey().catch(() => undefined);
         return true;
       },
       unlockBiometric: async () => {
         try {
           const k = await unlockWithBiometric();
           if (!k) return false;
+          fallbackKeys.current = [];
           setKey(k);
           setState("unlocked");
           return true;
@@ -128,10 +171,11 @@ export function LockProvider({ children }: { children: ReactNode }) {
       },
       changePin: async (pin) => {
         if (!key) throw new Error("Unlock first");
-        const k = await changePin(key, pin);
+        const k = await changePin([key, ...fallbackKeys.current], pin);
+        fallbackKeys.current = [];
         setKey(k);
         setConfig(await getLockConfig());
-        // The new salt becomes the shared one; other devices will be asked for the new PIN.
+        // The new verifier becomes the shared one; other devices simply unlock with the new PIN.
         await publishVaultKey(true).catch(() => undefined);
         requestFlush();
       },
@@ -145,7 +189,7 @@ export function LockProvider({ children }: { children: ReactNode }) {
       },
       decrypt: async (enc) => {
         if (!key) throw new Error("Vault is locked");
-        return decryptString(key, enc);
+        return decryptWithAny([key, ...fallbackKeys.current], enc);
       },
     }),
     [state, key, config, biometricAvailable, refresh, lock]
