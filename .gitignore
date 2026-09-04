@@ -1,0 +1,12 @@
+node_modules/
+dist/
+
+# Local environment files may contain Firebase credentials.
+.env.local
+.env.*.local
+
+# Local editor and OS metadata.
+.vscode/
+.DS_Store
+Thumbs.db
+node_modules
