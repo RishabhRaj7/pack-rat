@@ -10,7 +10,7 @@
  *  - Fonts / CDN: cache-first.
  *  - Firebase traffic is never intercepted (it has its own offline persistence).
  */
-const VERSION = 'packrat-v2';
+const VERSION = 'pack-rat-v2';
 const SHELL_CACHE = `${VERSION}-shell`;
 const DATA_CACHE = `${VERSION}-data`;
 const FONT_CACHE = `${VERSION}-fonts`;
