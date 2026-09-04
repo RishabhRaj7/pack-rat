@@ -88,7 +88,7 @@ export function SettingsPage() {
 
       <Section title="Cloud sync" icon={sync.configured ? <Cloud size={18} /> : <CloudOff size={18} />}>
         {!isFirebaseConfigured ? (
-          <Row label="Local-only mode" hint="Add NEXT_PUBLIC_FIREBASE_* keys to .env to enable Firestore + Storage sync across devices. All data currently lives in this browser's IndexedDB."><Badge>Offline-first</Badge></Row>
+          <Row label="Local-only mode" hint="Add VITE_FIREBASE_* keys to .env.local to enable Firestore + Storage sync across devices. All data currently lives in this browser's IndexedDB."><Badge>Offline-first</Badge></Row>
         ) : sync.user ? (
           <>
             <Row label={sync.user.name ?? sync.user.email ?? "Signed in"} hint={sync.user.email ?? undefined}>
