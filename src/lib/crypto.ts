@@ -17,8 +17,25 @@ export interface LockConfig {
   verifierB64: string; // encrypt("passport-ok")
   iterations: number;
   autoLockMinutes: number;
+  /** When this salt/verifier pair was created (used to reconcile across devices). */
+  keyCreatedAt?: number;
   biometric?: { credentialIdB64: string; wrappedKeyB64: string; ivB64: string };
 }
+
+/**
+ * The part of the lock config that must be identical on every device so that
+ * the same PIN derives the same AES key. Contains NO secret material:
+ * the salt is public by design and the verifier is just AES-GCM("passport-ok").
+ */
+export interface VaultKeyConfig {
+  saltB64: string;
+  verifierB64: string;
+  iterations: number;
+  keyCreatedAt: number;
+}
+
+export const vaultKeyOf = (cfg: LockConfig): VaultKeyConfig => ({ saltB64: cfg.saltB64, verifierB64: cfg.verifierB64, iterations: cfg.iterations, keyCreatedAt: cfg.keyCreatedAt ?? 0 });
+export const sameVaultKey = (a?: VaultKeyConfig | LockConfig | null, b?: VaultKeyConfig | LockConfig | null) => !!a && !!b && a.saltB64 === b.saltB64 && a.iterations === b.iterations;
 
 const enc = new TextEncoder();
 const dec = new TextDecoder();
@@ -59,9 +76,102 @@ export async function setupPin(pin: string, autoLockMinutes = 5): Promise<Crypto
   const salt = rnd(16);
   const key = await deriveKey(pin, salt, ITERATIONS);
   const verifier = await encryptString(key, "passport-ok");
-  const cfg: LockConfig = { saltB64: b64(salt), verifierB64: verifier, iterations: ITERATIONS, autoLockMinutes };
+  const cfg: LockConfig = { saltB64: b64(salt), verifierB64: verifier, iterations: ITERATIONS, autoLockMinutes, keyCreatedAt: Date.now() };
   await setSetting("lock", cfg);
   return key;
+}
+
+/** Derive a key from `pin` using another device's salt and check it against that device's verifier. */
+export async function deriveFromVaultKey(pin: string, remote: VaultKeyConfig): Promise<CryptoKey | null> {
+  const key = await deriveKey(pin, unb64(remote.saltB64), remote.iterations);
+  try {
+    return (await decryptString(key, remote.verifierB64)) === "passport-ok" ? key : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * First-run on a device that is already signed in: set up the lock using the salt that
+ * the other devices use, so ID numbers synced from them decrypt straight away.
+ */
+export async function setupPinFromRemote(pin: string, remote: VaultKeyConfig, autoLockMinutes = 5): Promise<CryptoKey | null> {
+  const key = await deriveFromVaultKey(pin, remote);
+  if (!key) return null;
+  await setSetting("lock", { ...remote, autoLockMinutes } satisfies LockConfig);
+  return key;
+}
+
+/** Can `key` decrypt this ciphertext? (plaintext / empty counts as readable) */
+export async function canDecrypt(key: CryptoKey, value?: string): Promise<boolean> {
+  if (!value || !isEncrypted(value)) return true;
+  try {
+    await decryptString(key, value);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Re-encrypt every sensitive field so that it is readable with `newKey`.
+ * Fields already readable with `newKey` are left untouched; fields readable with `oldKey`
+ * are re-encrypted; anything else (encrypted with a third key) is left as-is.
+ * Returns the ids of records that were rewritten.
+ */
+export async function reencryptAll(oldKey: CryptoKey | null, newKey: CryptoKey, enqueue = true): Promise<{ rewritten: number; unreadable: number }> {
+  let rewritten = 0;
+  let unreadable = 0;
+  const re = async (v?: string): Promise<string | undefined | null> => {
+    if (!v) return v;
+    if (await canDecrypt(newKey, v)) return null; // already fine
+    if (oldKey && (await canDecrypt(oldKey, v))) return encryptString(newKey, await decryptString(oldKey, v));
+    unreadable++;
+    return null;
+  };
+  await db.transaction("rw", db.documents, db.loyalty, db.trips, db.syncQueue, async () => {
+    for (const d of await db.documents.toArray()) {
+      const v = await re(d.numberEnc);
+      if (v != null) {
+        rewritten++;
+        await db.documents.update(d.id, { numberEnc: v, updatedAt: Date.now() });
+        if (enqueue) await db.syncQueue.add({ table: "documents", docId: d.id, op: "put", at: Date.now(), label: `Document · ${d.label ?? d.type}` });
+      }
+    }
+    for (const l of await db.loyalty.toArray()) {
+      const v = await re(l.numberEnc);
+      if (v != null) {
+        rewritten++;
+        await db.loyalty.update(l.id, { numberEnc: v, updatedAt: Date.now() });
+        if (enqueue) await db.syncQueue.add({ table: "loyalty", docId: l.id, op: "put", at: Date.now(), label: `Loyalty · ${l.program}` });
+      }
+    }
+    for (const t of await db.trips.toArray()) {
+      if (!t.emergency?.insurancePolicyEnc) continue;
+      const v = await re(t.emergency.insurancePolicyEnc);
+      if (v != null) {
+        rewritten++;
+        await db.trips.update(t.id, { emergency: { ...t.emergency, insurancePolicyEnc: v }, updatedAt: Date.now() });
+        if (enqueue) await db.syncQueue.add({ table: "trips", docId: t.id, op: "put", at: Date.now(), label: `Trip · ${t.title}` });
+      }
+    }
+  });
+  return { rewritten, unreadable };
+}
+
+/**
+ * Switch this device to the vault key used by the other devices (same PIN, their salt).
+ * Everything encrypted with the current local key is re-encrypted so the whole family
+ * of devices shares one key. Biometric unlock must be re-enabled afterwards.
+ */
+export async function adoptRemoteVaultKey(localKey: CryptoKey | null, pin: string, remote: VaultKeyConfig): Promise<{ key: CryptoKey; rewritten: number; unreadable: number }> {
+  const key = await deriveFromVaultKey(pin, remote);
+  if (!key) throw new Error("That PIN does not match the one used on your other device");
+  const stats = await reencryptAll(localKey, key);
+  const cfg = await getLockConfig();
+  await setSetting("lock", { ...(cfg ?? { autoLockMinutes: 5 }), ...remote, biometric: undefined } satisfies LockConfig);
+  await db.settings.delete("deviceKey");
+  return { key, ...stats };
 }
 
 export async function unlockWithPin(pin: string): Promise<CryptoKey | null> {
@@ -100,7 +210,7 @@ export async function changePin(oldKey: CryptoKey, newPin: string): Promise<Cryp
     }
   });
   const verifier = await encryptString(newKey, "passport-ok");
-  await setSetting("lock", { ...cfg, saltB64: b64(salt), verifierB64: verifier, iterations: ITERATIONS, biometric: undefined });
+  await setSetting("lock", { ...cfg, saltB64: b64(salt), verifierB64: verifier, iterations: ITERATIONS, keyCreatedAt: Date.now(), biometric: undefined });
   await db.settings.delete("deviceKey");
   return newKey;
 }

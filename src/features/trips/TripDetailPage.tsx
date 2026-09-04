@@ -4,6 +4,7 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { ArrowLeft, MapPin, CalendarRange, Hotel, Wallet, Siren, Pencil, Trash2, AlertTriangle } from "lucide-react";
 import { db } from "@/lib/db";
 import { PageHeader, Button, Badge, Avatar, StatusDot, Card } from "@/components/ui";
+import { ScrollStrip, SyncBadge } from "@/components/sync";
 import { useMemberMap } from "@/features/family/hooks";
 import { deleteTripCascade } from "@/lib/repo";
 import { fmtDate, daysBetween, flag, today, cn } from "@/lib/utils";
@@ -52,7 +53,20 @@ export function TripDetailPage() {
   const { id } = useParams();
   const nav = useNavigate();
   const [params, setParams] = useSearchParams();
-  const tab = (params.get("tab") as TabId) || "places";
+  const requested = params.get("tab");
+  const tab: TabId = TABS.some((t) => t.id === requested) ? (requested as TabId) : "places";
+  // Replace (not push) so switching tabs doesn't pile up history entries — the browser Back
+  // button on desktop should leave the trip, not step through every tab visited. Other params are kept.
+  const selectTab = (id: TabId) =>
+    setParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        if (id === "places") next.delete("tab");
+        else next.set("tab", id);
+        return next;
+      },
+      { replace: true }
+    );
   const trip = useTrip(id);
   const places = usePlaces(id);
   const hotels = useHotels(id);
@@ -72,7 +86,7 @@ export function TripDetailPage() {
       <PageHeader
         back={<Link to="/trips" className="mb-2 inline-flex items-center gap-1 text-xs font-semibold text-muted hover:text-fg"><ArrowLeft size={14} /> Trips</Link>}
         title={<span className="flex items-center gap-2"><span className="text-3xl">{trip.coverEmoji}</span> {trip.title}</span>}
-        subtitle={<span>{flag(trip.countryCode)} {trip.city}, {trip.country} · {fmtDate(trip.startDate, "d MMM")} – {fmtDate(trip.endDate)} · {daysBetween(trip.startDate, trip.endDate) + 1} days</span>}
+        subtitle={<span className="inline-flex flex-wrap items-center gap-2">{flag(trip.countryCode)} {trip.city}, {trip.country} · {fmtDate(trip.startDate, "d MMM")} – {fmtDate(trip.endDate)} · {daysBetween(trip.startDate, trip.endDate) + 1} days <SyncBadge table="trips" id={trip.id} /></span>}
         action={<div className="flex gap-2"><Button variant="outline" size="icon" onClick={() => setEdit(true)}><Pencil size={16} /></Button><Button variant="danger" size="icon" onClick={async () => { if (confirm(`Delete "${trip.title}" and everything in it?`)) { await deleteTripCascade(trip.id); nav("/trips"); } }}><Trash2 size={16} /></Button></div>}
       />
 
@@ -85,13 +99,21 @@ export function TripDetailPage() {
       <TravellerReadiness trip={trip} />
       {trip.notes && tab === "places" && <Card className="mb-4 whitespace-pre-wrap p-4 text-sm text-muted">{trip.notes}</Card>}
 
-      <div className="mb-5 flex gap-1 overflow-x-auto rounded-2xl bg-surface p-1 shadow-card">
+      <ScrollStrip className="mb-5 rounded-2xl bg-surface p-1 shadow-card" activeKey={tab}>
         {TABS.map((t) => (
-          <button key={t.id} onClick={() => setParams({ tab: t.id })} className={cn("flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl px-3 py-2 text-xs font-bold transition sm:text-sm", tab === t.id ? "bg-accent text-on-accent shadow-sm" : "text-muted hover:text-fg")}>
+          <button
+            key={t.id}
+            type="button"
+            role="tab"
+            aria-selected={tab === t.id}
+            data-strip-key={t.id}
+            onClick={() => selectTab(t.id)}
+            className={cn("flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl px-3 py-2 text-xs font-bold transition sm:text-sm", tab === t.id ? "bg-accent text-on-accent shadow-sm" : "text-muted hover:text-fg")}
+          >
             <t.icon size={15} /> {t.label}
           </button>
         ))}
-      </div>
+      </ScrollStrip>
 
       <div className="animate-fade-up" key={tab}>
         {tab === "places" && <PlacesTab trip={trip} />}

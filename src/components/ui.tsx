@@ -1,4 +1,5 @@
 import { forwardRef, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { cn, initials, colorFor } from "@/lib/utils";
 import type { ReadyStatus } from "@/features/trips/types";
@@ -157,8 +158,10 @@ export function Modal({ open, onClose, title, children, footer, size = "md" }: {
       document.body.style.overflow = "";
     };
   }, [open, onClose]);
-  if (!open) return null;
-  return (
+  if (!open || typeof document === "undefined") return null;
+  // Portal to <body>: ancestors with backdrop-filter / transform (e.g. the blurred mobile header,
+  // the sticky sidebar) would otherwise become the containing block and clip a fixed overlay.
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 backdrop-blur-sm sm:items-center sm:p-4" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div
         className={cn(
@@ -177,7 +180,8 @@ export function Modal({ open, onClose, title, children, footer, size = "md" }: {
         <div className="flex-1 overflow-y-auto px-5 py-4">{children}</div>
         {footer && <div className="flex justify-end gap-2 border-t border-line px-5 py-3 safe-bottom">{footer}</div>}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 

@@ -10,6 +10,7 @@ import { fetchForecast, packingSuggestions, weatherLabel, type DayForecast } fro
 import { useItinerary, usePlaces } from "./hooks";
 import { placeStatus, PLACE_TAGS, type ItineraryDay, type Place, type Trip } from "./types";
 import { publishTrip } from "./publish";
+import { ScrollStrip } from "@/components/sync";
 
 function SortablePlace({ place, trip, index, onRemove }: { place: Place; trip: Trip; index: number; onRemove: () => void }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: place.id });
@@ -120,12 +121,12 @@ export function ItineraryTab({ trip }: { trip: Trip }) {
   return (
     <div>
       <div className="mb-4 flex flex-wrap items-center gap-2">
-        <div className="flex flex-1 gap-1.5 overflow-x-auto pb-1">
+        <ScrollStrip className="flex-1 pb-1" activeKey={selected?.id}>
           {days.map((d, i) => {
             const dayPlaces = d.placeIds.map((id) => placeMap.get(id)).filter(Boolean) as Place[];
             const worst = dayPlaces.some((p) => placeStatus(p) === "action") ? "action" : dayPlaces.some((p) => placeStatus(p) === "progress") ? "progress" : "ready";
             return (
-              <button key={d.id} onClick={() => setSelectedId(d.id)} className={cn("flex min-w-[76px] shrink-0 flex-col items-center rounded-xl border px-3 py-2 transition", selected?.id === d.id ? "border-accent bg-accent text-on-accent" : "border-line bg-surface hover:border-accent/50")}>
+              <button key={d.id} type="button" data-strip-key={d.id} onClick={() => setSelectedId(d.id)} className={cn("flex min-w-[76px] shrink-0 flex-col items-center rounded-xl border px-3 py-2 transition", selected?.id === d.id ? "border-accent bg-accent text-on-accent" : "border-line bg-surface hover:border-accent/50")}>
                 <span className="text-[10px] font-bold uppercase opacity-70">Day {i + 1}</span>
                 <span className="text-sm font-extrabold">{fmtDate(d.date, "d MMM")}</span>
                 <span className="mt-0.5 flex items-center gap-1 text-[10px] opacity-80">{dayPlaces.length > 0 && <StatusDot status={worst} className="h-1.5 w-1.5 [&>span]:h-1.5 [&>span]:w-1.5" />} {dayPlaces.length} stops</span>
@@ -133,7 +134,7 @@ export function ItineraryTab({ trip }: { trip: Trip }) {
             );
           })}
           {missingDays.length > 0 && <button onClick={generateDays} className="flex shrink-0 items-center gap-1 rounded-xl border border-dashed border-line px-3 text-xs text-muted hover:border-accent hover:text-accent"><Plus size={12} /> {missingDays.length} more day{missingDays.length > 1 && "s"}</button>}
-        </div>
+        </ScrollStrip>
         <div className="flex gap-2">
           {unscheduled.length > 0 && <Button variant="secondary" size="sm" onClick={autoFill} title="Spread unscheduled places across days"><Sparkles size={14} /> Auto-fill {unscheduled.length}</Button>}
           <Button variant="outline" size="sm" onClick={async () => { setShareUrl(await publishTrip(trip)); }}><Share2 size={14} /> Publish</Button>

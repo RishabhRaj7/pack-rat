@@ -111,7 +111,7 @@ export interface FlightLive {
 
 /** Without an API key we estimate the phase from the scheduled times; with AeroDataBox (RapidAPI) we return live data. */
 export async function fetchFlightStatus(f: Flight): Promise<FlightLive> {
-  const key = import.meta.env.VITE_AERODATABOX_KEY;
+  const key = process.env.NEXT_PUBLIC_AERODATABOX_KEY;
   if (key) {
     try {
       const date = f.departAt.slice(0, 10);

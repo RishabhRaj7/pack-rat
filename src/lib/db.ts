@@ -26,7 +26,38 @@ export interface SyncQueueItem {
   docId: string;
   op: "put" | "delete";
   at: number;
+  /** Human readable name of the record (e.g. "Passport · Rishabh") for sync status UI. */
+  label?: string;
+  /** Number of failed attempts (kept for diagnostics). */
+  attempts?: number;
+  error?: string;
 }
+
+/** One row per synced record: when it was last confirmed in the cloud (pushed or pulled). */
+export interface SyncLogRow {
+  docKey: string; // `${table}:${docId}`
+  table: SyncedTable;
+  docId: string;
+  op: "put" | "delete";
+  direction: "push" | "pull";
+  label?: string;
+  at: number;
+}
+
+export const TABLE_LABELS: Record<SyncedTable, string> = {
+  members: "Family member",
+  documents: "Document",
+  trips: "Trip",
+  places: "Place",
+  hotels: "Hotel",
+  flights: "Flight",
+  itineraryDays: "Itinerary day",
+  expenses: "Expense",
+  loyalty: "Loyalty card",
+  attachments: "Attachment",
+};
+
+export const syncKey = (table: SyncedTable, docId: string) => `${table}:${docId}`;
 
 export const SYNCED_TABLES = [
   "members",
@@ -55,6 +86,7 @@ export class PassportDB extends Dexie {
   attachments!: Table<Attachment, string>;
   settings!: Table<SettingRow, string>;
   syncQueue!: Table<SyncQueueItem, number>;
+  syncLog!: Table<SyncLogRow, string>;
 
   constructor() {
     super("passport");
@@ -71,6 +103,22 @@ export class PassportDB extends Dexie {
       attachments: "id, updatedAt",
       settings: "key",
       syncQueue: "++id, table, docId",
+    });
+    // v2: per-record sync log so the UI can show what is / isn't synced.
+    this.version(2).stores({
+      members: "id, name, updatedAt",
+      documents: "id, memberId, type, expiryDate, updatedAt",
+      trips: "id, countryCode, startDate, endDate, updatedAt",
+      places: "id, tripId, updatedAt",
+      hotels: "id, tripId, updatedAt",
+      flights: "id, tripId, departAt, updatedAt",
+      itineraryDays: "id, tripId, date, updatedAt",
+      expenses: "id, tripId, date, updatedAt",
+      loyalty: "id, memberId, kind, updatedAt",
+      attachments: "id, updatedAt",
+      settings: "key",
+      syncQueue: "++id, table, docId",
+      syncLog: "docKey, table, at",
     });
   }
 }

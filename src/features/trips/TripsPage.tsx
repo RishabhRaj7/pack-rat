@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { PageHeader, Button, Input, Chip, Card, Badge, EmptyState, StatusDot, Avatar } from "@/components/ui";
 import { useMemberMap } from "@/features/family/hooks";
 import { fmtDate, daysBetween, flag, today } from "@/lib/utils";
+import { SyncBadge } from "@/components/sync";
 import { useTrips } from "./hooks";
 import { TripForm } from "./TripForm";
 import { placeStatus, tripStatus, type Trip, type TripStatus } from "./types";
@@ -27,7 +28,7 @@ function TripCard({ trip }: { trip: Trip }) {
           </div>
         </div>
         <div className="p-4">
-          <h3 className="text-lg font-extrabold tracking-tight">{trip.title}</h3>
+          <div className="flex items-start justify-between gap-2"><h3 className="text-lg font-extrabold tracking-tight">{trip.title}</h3><SyncBadge table="trips" id={trip.id} className="mt-1.5" /></div>
           <p className="text-sm text-muted">{flag(trip.countryCode)} {trip.city}, {trip.country}</p>
           <p className="mt-1 flex items-center gap-1.5 text-xs text-muted"><CalendarDays size={13} /> {fmtDate(trip.startDate, "d MMM")} – {fmtDate(trip.endDate)} · {daysBetween(trip.startDate, trip.endDate) + 1} days</p>
           <div className="mt-3 flex items-center justify-between">

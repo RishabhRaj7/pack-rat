@@ -1,5 +1,7 @@
 import { db, SYNCED_TABLES, type Attachment } from "@/lib/db";
 import { blobToDataUrl, dataUrlToBlob, downloadJson } from "@/lib/utils";
+import { labelFor } from "@/lib/repo";
+import { requestFlush } from "@/lib/sync";
 
 export interface BackupFile {
   app: "passport";
@@ -28,8 +30,11 @@ export async function exportBackup(includeAttachments: boolean) {
 export async function importBackup(file: File, mode: "merge" | "replace") {
   const parsed = JSON.parse(await file.text()) as BackupFile;
   if (parsed.app !== "passport") throw new Error("Not a Passport backup file");
-  await db.transaction("rw", [...SYNCED_TABLES.map((t) => db.table(t)), db.settings, db.syncQueue], async () => {
-    if (mode === "replace") for (const t of SYNCED_TABLES) await db.table(t).clear();
+  await db.transaction("rw", [...SYNCED_TABLES.map((t) => db.table(t)), db.settings, db.syncQueue, db.syncLog], async () => {
+    if (mode === "replace") {
+      for (const t of SYNCED_TABLES) await db.table(t).clear();
+      await db.syncLog.clear();
+    }
     for (const t of SYNCED_TABLES) {
       const rows = parsed.tables[t] ?? [];
       if (t === "attachments") {
@@ -38,10 +43,11 @@ export async function importBackup(file: File, mode: "merge" | "replace") {
           await db.attachments.put({ ...rest, blob: dataUrl ? await dataUrlToBlob(dataUrl) : undefined });
         }
       } else await db.table(t).bulkPut(rows);
-      for (const r of rows as { id: string }[]) await db.syncQueue.add({ table: t, docId: r.id, op: "put", at: Date.now() });
+      for (const r of rows as { id: string }[]) await db.syncQueue.add({ table: t, docId: r.id, op: "put", at: Date.now(), label: labelFor(t, r as unknown as Record<string, unknown>) });
     }
     if (parsed.lock && mode === "replace") await db.settings.put({ key: "lock", value: parsed.lock });
   });
+  requestFlush();
 }
 
 export async function wipeAllData() {

@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { getLockConfig, setupPin, unlockWithPin, unlockWithBiometric, biometricSupported, enableBiometric, disableBiometric, changePin, setAutoLock, type LockConfig, encryptString, decryptString } from "@/lib/crypto";
+import { getLockConfig, setupPin, setupPinFromRemote, adoptRemoteVaultKey, unlockWithPin, unlockWithBiometric, biometricSupported, enableBiometric, disableBiometric, changePin, setAutoLock, type LockConfig, type VaultKeyConfig, encryptString, decryptString } from "@/lib/crypto";
+import { publishVaultKey, recheckVaultKey, requestFlush } from "@/lib/sync";
 
 type LockState = "loading" | "setup" | "locked" | "unlocked";
 
@@ -9,6 +10,10 @@ interface LockCtx {
   config: LockConfig | null;
   biometricAvailable: boolean;
   setup: (pin: string) => Promise<void>;
+  /** First run on a signed-in device: use the shared salt so synced ID numbers decrypt. Returns false if the PIN doesn't match. */
+  setupFromRemote: (pin: string, remote: VaultKeyConfig) => Promise<boolean>;
+  /** Switch this device to the vault key used by other devices and re-encrypt local data. */
+  adoptRemoteKey: (pin: string, remote: VaultKeyConfig) => Promise<{ rewritten: number; unreadable: number }>;
   unlockPin: (pin: string) => Promise<boolean>;
   unlockBiometric: () => Promise<boolean>;
   lock: () => void;
@@ -47,13 +52,14 @@ export function LockProvider({ children }: { children: ReactNode }) {
     setState((s) => (s === "setup" ? s : "locked"));
   }, []);
 
-  // Auto-lock when the app has been in the background longer than the configured timeout
+  // Auto-lock when the app has been in the background longer than the configured timeout.
+  // "Immediately" (0) locks as soon as the tab is hidden; previously 0 never locked at all.
   useEffect(() => {
     const onVis = () => {
       if (document.visibilityState === "hidden") hiddenAt.current = Date.now();
       else if (hiddenAt.current && state === "unlocked") {
         const mins = config?.autoLockMinutes ?? 5;
-        if (mins > 0 && Date.now() - hiddenAt.current > mins * 60_000) lock();
+        if (Date.now() - hiddenAt.current >= mins * 60_000) lock();
         hiddenAt.current = null;
       }
     };
@@ -74,6 +80,24 @@ export function LockProvider({ children }: { children: ReactNode }) {
         setKey(k);
         setConfig(await getLockConfig());
         setState("unlocked");
+        void publishVaultKey().catch(() => undefined);
+      },
+      setupFromRemote: async (pin, remote) => {
+        const k = await setupPinFromRemote(pin, remote);
+        if (!k) return false;
+        setKey(k);
+        setConfig(await getLockConfig());
+        setState("unlocked");
+        void recheckVaultKey().catch(() => undefined);
+        return true;
+      },
+      adoptRemoteKey: async (pin, remote) => {
+        const r = await adoptRemoteVaultKey(key, pin, remote);
+        setKey(r.key);
+        setConfig(await getLockConfig());
+        await recheckVaultKey().catch(() => undefined);
+        requestFlush();
+        return { rewritten: r.rewritten, unreadable: r.unreadable };
       },
       unlockPin: async (pin) => {
         const k = await unlockWithPin(pin);
@@ -107,6 +131,9 @@ export function LockProvider({ children }: { children: ReactNode }) {
         const k = await changePin(key, pin);
         setKey(k);
         setConfig(await getLockConfig());
+        // The new salt becomes the shared one; other devices will be asked for the new PIN.
+        await publishVaultKey(true).catch(() => undefined);
+        requestFlush();
       },
       setAutoLockMinutes: async (m) => {
         await setAutoLock(m);

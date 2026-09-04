@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { Fingerprint, Lock, ShieldCheck, Delete } from "lucide-react";
 import { useLock } from "./LockProvider";
 import { cn } from "@/lib/utils";
+import { fetchRemoteVaultKey, useSyncStatus } from "@/lib/sync";
+import type { VaultKeyConfig } from "@/lib/crypto";
 
 function PinPad({ value, onChange, length = 6 }: { value: string; onChange: (v: string) => void; length?: number }) {
   const press = (d: string) => value.length < length && onChange(value + d);
@@ -46,6 +48,15 @@ export function LockScreen() {
   const [busy, setBusy] = useState(false);
   const isSetup = lock.state === "setup";
   const canBio = !!lock.config?.biometric && lock.biometricAvailable;
+  const sync = useSyncStatus();
+  // First run on a device that is already signed in: reuse the shared vault key config so
+  // ID numbers synced from the other device decrypt with the same PIN.
+  const [remoteKey, setRemoteKey] = useState<VaultKeyConfig | null | undefined>(undefined);
+  useEffect(() => {
+    if (!isSetup || !sync.user) { setRemoteKey(null); return; }
+    fetchRemoteVaultKey().then(setRemoteKey).catch(() => setRemoteKey(null));
+  }, [isSetup, sync.user]);
+  const joinExisting = isSetup && !!remoteKey;
 
   // Try biometric immediately on lock screen
   useEffect(() => {
@@ -58,7 +69,13 @@ export function LockScreen() {
     (async () => {
       setBusy(true);
       setError(null);
-      if (isSetup) {
+      if (joinExisting && remoteKey) {
+        const ok = await lock.setupFromRemote(pin, remoteKey);
+        if (!ok) {
+          setError("That isn't the PIN used on your other device");
+          setPin("");
+        }
+      } else if (isSetup) {
         if (stage === "enter") {
           setConfirm(pin);
           setPin("");
@@ -87,14 +104,17 @@ export function LockScreen() {
       <div className="w-full max-w-sm animate-fade-up rounded-3xl border border-line bg-surface p-8 shadow-card">
         <div className="mb-6 flex flex-col items-center text-center">
           <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-accent-soft text-accent-strong">{isSetup ? <ShieldCheck size={28} /> : <Lock size={26} />}</div>
-          <h1 className="text-xl font-extrabold tracking-tight">{isSetup ? (stage === "enter" ? "Create your vault PIN" : "Confirm your PIN") : "Pack Rat is locked"}</h1>
+          <h1 className="text-xl font-extrabold tracking-tight">{joinExisting ? "Enter your existing vault PIN" : isSetup ? (stage === "enter" ? "Create your vault PIN" : "Confirm your PIN") : "Pack Rat is locked"}</h1>
           <p className="mt-1.5 text-sm text-muted">
-            {isSetup
-              ? "Your PIN encrypts ID numbers, loyalty numbers and policy numbers on this device. It is never stored — if you forget it, encrypted fields cannot be recovered."
+            {joinExisting
+              ? `You're signed in as ${sync.user?.email ?? "your account"}. Enter the PIN you use on your other device so synced ID numbers can be decrypted here.`
+              : isSetup
+              ? "Your PIN encrypts ID numbers, loyalty numbers and policy numbers. It is never stored — if you forget it, encrypted fields cannot be recovered."
               : "Enter your 6-digit PIN to view your documents and trips."}
           </p>
         </div>
         <PinPad value={pin} onChange={(v) => !busy && setPin(v)} />
+        {joinExisting && <button type="button" onClick={() => { setRemoteKey(null); setPin(""); setError(null); }} className="mx-auto mt-3 block text-xs font-semibold text-muted hover:text-fg">Start fresh with a new PIN instead</button>}
         <div className="mt-5 min-h-[20px] text-center text-sm font-medium text-danger">{error}</div>
         {!isSetup && canBio && (
           <button onClick={() => lock.unlockBiometric()} className="mx-auto mt-2 flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold text-accent hover:bg-accent-soft">

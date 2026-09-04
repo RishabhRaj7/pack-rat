@@ -21,13 +21,13 @@ export function EmergencyTab({ trip }: { trip: Trip }) {
   const { encrypt } = useLock();
   const [edit, setEdit] = useState(false);
   const [form, setForm] = useState<EmergencyInfo>(trip.emergency ?? {});
-  const { plain: policy, setPlain: setPolicy, ready } = useDecrypted(trip.emergency?.insurancePolicyEnc);
+  const { plain: policy, setPlain: setPolicy, ready, unreadable, keepIfUnreadable } = useDecrypted(trip.emergency?.insurancePolicyEnc);
   useEffect(() => setForm(trip.emergency ?? {}), [trip.emergency]);
   const set = (k: keyof EmergencyInfo, v: string) => setForm((f) => ({ ...f, [k]: v }));
   const e = trip.emergency ?? {};
 
   const save = async () => {
-    const insurancePolicyEnc = policy.trim() ? await encrypt(policy.trim()) : undefined;
+    const insurancePolicyEnc = await keepIfUnreadable(encrypt, false);
     await put("trips", { ...trip, emergency: { ...form, insurancePolicyEnc } });
     setEdit(false);
   };
@@ -50,7 +50,7 @@ export function EmergencyTab({ trip }: { trip: Trip }) {
         </div>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
           <Field label="Insurance provider"><Input value={form.insuranceProvider ?? ""} onChange={(ev) => set("insuranceProvider", ev.target.value)} /></Field>
-          <Field label="Policy number" hint="Encrypted"><Input value={policy} onChange={(ev) => setPolicy(ev.target.value)} disabled={!ready} className="font-mono" /></Field>
+          <Field label="Policy number" hint={unreadable ? "Encrypted with another device's PIN — leave blank to keep it" : "Encrypted"}><Input value={policy} onChange={(ev) => setPolicy(ev.target.value)} disabled={!ready} className="font-mono" /></Field>
           <Field label="24h assistance line"><Input value={form.insurancePhone ?? ""} onChange={(ev) => set("insurancePhone", ev.target.value)} /></Field>
         </div>
         <Field label="Notes"><Textarea value={form.notes ?? ""} onChange={(ev) => set("notes", ev.target.value)} placeholder="Nearest hospital, blood groups, allergies, pharmacy hours…" /></Field>

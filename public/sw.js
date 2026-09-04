@@ -1,14 +1,16 @@
 /* Passport service worker
  * Strategy:
- *  - App shell (navigation requests, same-origin assets): cache-first with background refresh
- *    (stale-while-revalidate). The Vite build is a single self-contained index.html, so caching
- *    "/" is enough to boot the whole app offline. IndexedDB holds the user's synced data.
+ *  - Navigations: network-first, falling back to the cached shell when offline. (Serving the
+ *    cached shell first meant desktop browsers kept booting an outdated bundle after a deploy
+ *    until a second reload — with HashRouter every tab/route boots from "/", so a stale shell
+ *    broke navigation on already-open tabs.) IndexedDB holds the user's synced data.
+ *  - Same-origin static assets (hashed): stale-while-revalidate.
  *  - Data APIs (weather, currency, flight status): network-first, falling back to the last cached
  *    response so the daily prep panel & expense conversions still render offline.
  *  - Fonts / CDN: cache-first.
  *  - Firebase traffic is never intercepted (it has its own offline persistence).
  */
-const VERSION = 'passport-v1';
+const VERSION = 'packrat-v2';
 const SHELL_CACHE = `${VERSION}-shell`;
 const DATA_CACHE = `${VERSION}-data`;
 const FONT_CACHE = `${VERSION}-fonts`;
@@ -54,6 +56,17 @@ async function staleWhileRevalidate(request, cacheName, isNavigation = false) {
   return Response.error();
 }
 
+async function navigationNetworkFirst() {
+  const cache = await caches.open(SHELL_CACHE);
+  try {
+    const res = await fetch('/', { cache: 'no-cache' });
+    if (res && res.ok) cache.put('/', res.clone());
+    return res;
+  } catch (e) {
+    return (await cache.match('/')) || (await cache.match('/index.html')) || Response.error();
+  }
+}
+
 async function networkFirst(request, cacheName) {
   const cache = await caches.open(cacheName);
   try {
@@ -88,8 +101,9 @@ self.addEventListener('fetch', (event) => {
   if (BYPASS_HOSTS.some((h) => url.hostname.endsWith(h))) return;
 
   if (request.mode === 'navigate') {
-    // Single-file build: every route boots from "/" (HashRouter), so serve the cached shell.
-    event.respondWith(staleWhileRevalidate(new Request('/'), SHELL_CACHE, true));
+    // Every route boots from "/" (HashRouter). Prefer the network so a fresh deploy is picked up
+    // immediately; fall back to the cached shell when offline.
+    event.respondWith(navigationNetworkFirst());
     return;
   }
   if (url.origin === self.location.origin) {

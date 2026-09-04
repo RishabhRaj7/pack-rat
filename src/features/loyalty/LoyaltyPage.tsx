@@ -4,6 +4,7 @@ import { Plus, Pencil, Trash2, CreditCard } from "lucide-react";
 import { db } from "@/lib/db";
 import { Modal, Button, Field, Input, Select, Textarea, Card, Badge, PageHeader, EmptyState, Chip, Avatar } from "@/components/ui";
 import { SecretField, useDecrypted } from "@/features/lock/SecretField";
+import { SyncBadge } from "@/components/sync";
 import { useLock } from "@/features/lock/LockProvider";
 import { useMembers, useMemberMap } from "@/features/family/hooks";
 import { put, newId, remove } from "@/lib/repo";
@@ -13,12 +14,12 @@ export function LoyaltyForm({ open, onClose, card, memberId }: { open: boolean; 
   const { encrypt } = useLock();
   const members = useMembers() ?? [];
   const [form, setForm] = useState<Partial<LoyaltyCard>>(card ?? { kind: "airline", program: "", memberId });
-  const { plain, setPlain, ready } = useDecrypted(card?.numberEnc);
+  const { plain, setPlain, ready, unreadable, keepIfUnreadable } = useDecrypted(card?.numberEnc);
   const set = (k: keyof LoyaltyCard, v: unknown) => setForm((f) => ({ ...f, [k]: v }));
-  const valid = form.program?.trim() && plain.trim();
+  const valid = form.program?.trim() && (plain.trim() || unreadable);
   const save = async () => {
     if (!valid) return;
-    await put("loyalty", { ...(form as LoyaltyCard), id: form.id ?? newId(), numberEnc: await encrypt(plain.trim()) });
+    await put("loyalty", { ...(form as LoyaltyCard), id: form.id ?? newId(), numberEnc: (await keepIfUnreadable(encrypt)) ?? "" });
     onClose();
   };
   return (
@@ -39,7 +40,7 @@ export function LoyaltyForm({ open, onClose, card, memberId }: { open: boolean; 
         </div>
         <Field label="Program / card name"><Input value={form.program ?? ""} onChange={(e) => set("program", e.target.value)} placeholder="KrisFlyer, Marriott Bonvoy, Amex Platinum…" /></Field>
         <Field label={form.kind === "card" ? "Card (store last 4 digits only)" : "Membership number"} hint="Encrypted before storage.">
-          <Input value={plain} onChange={(e) => setPlain(e.target.value)} className="font-mono" placeholder={form.kind === "card" ? "•••• 4242" : "1234 5678 90"} disabled={!ready} autoComplete="off" />
+          <Input value={plain} onChange={(e) => setPlain(e.target.value)} className="font-mono" placeholder={unreadable ? "Encrypted with another device's PIN — leave blank to keep it" : form.kind === "card" ? "•••• 4242" : "1234 5678 90"} disabled={!ready} autoComplete="off" />
         </Field>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Tier / status"><Input value={form.tier ?? ""} onChange={(e) => set("tier", e.target.value)} placeholder="Gold, Platinum…" /></Field>
@@ -64,6 +65,7 @@ export function LoyaltyCardRow({ card, showOwner }: { card: LoyaltyCard; showOwn
           <p className="font-bold">{card.program}</p>
           {card.tier && <Badge tone="accent">{card.tier}</Badge>}
           {card.expiry && <Badge>Exp {card.expiry}</Badge>}
+          <SyncBadge table="loyalty" id={card.id} />
         </div>
         <div className="mt-1"><SecretField value={card.numberEnc} /></div>
         {card.preferredFor && <p className="mt-1.5 text-xs text-muted">💡 {card.preferredFor}</p>}

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Pencil, Trash2, FileText } from "lucide-react";
 import { Card, Badge, Avatar } from "@/components/ui";
 import { SecretField } from "@/features/lock/SecretField";
+import { SyncBadge } from "@/components/sync";
 import { useAttachmentUrl } from "@/components/attachments";
 import { fmtDate, countryName, flag } from "@/lib/utils";
 import { remove, removeAttachment } from "@/lib/repo";
@@ -31,6 +32,7 @@ export function DocumentCard({ doc, member, showMember }: { doc: IdDocument; mem
           <div className="flex flex-wrap items-center gap-2">
             <p className="font-bold">{doc.label || type.label}</p>
             <ExpiryBadge expiryDate={doc.expiryDate} />
+            <SyncBadge table="documents" id={doc.id} />
           </div>
           <p className="text-xs text-muted">
             {flag(doc.issuingCountry)} {countryName(doc.issuingCountry)} · Expires {fmtDate(doc.expiryDate)}

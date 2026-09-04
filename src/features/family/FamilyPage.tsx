@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
+import { SyncBadge } from "@/components/sync";
 import { useLiveQuery } from "dexie-react-hooks";
 import { Plus, Users, ChevronRight } from "lucide-react";
 import { db } from "@/lib/db";
@@ -27,6 +28,7 @@ function MemberCard({ m }: { m: FamilyMember }) {
           </p>
           <div className="mt-1.5 flex flex-wrap gap-1.5">
             <Badge>{docs.length} document{docs.length === 1 ? "" : "s"}</Badge>
+            <SyncBadge table="members" id={m.id} />
             {alerts > 0 && <Badge tone="danger">{alerts} need renewal</Badge>}
             {soon > 0 && <Badge tone="warn">{soon} expiring soon</Badge>}
           </div>

@@ -12,15 +12,15 @@ export function DocumentForm({ open, onClose, doc, memberId }: { open: boolean; 
   const { encrypt } = useLock();
   const members = useMembers() ?? [];
   const [form, setForm] = useState<Partial<IdDocument>>(doc ?? { memberId: memberId ?? "", type: "passport", issuingCountry: "" });
-  const { plain: number, setPlain: setNumber, ready } = useDecrypted(doc?.numberEnc);
+  const { plain: number, setPlain: setNumber, ready, unreadable, keepIfUnreadable } = useDecrypted(doc?.numberEnc);
   const [saving, setSaving] = useState(false);
   const set = (k: keyof IdDocument, v: unknown) => setForm((f) => ({ ...f, [k]: v }));
-  const valid = form.memberId && form.type && number.trim();
+  const valid = form.memberId && form.type && (number.trim() || unreadable);
 
   const save = async () => {
     if (!valid) return;
     setSaving(true);
-    const numberEnc = await encrypt(number.trim());
+    const numberEnc = (await keepIfUnreadable(encrypt)) ?? "";
     await put("documents", { ...(form as IdDocument), id: form.id ?? newId(), numberEnc });
     setSaving(false);
     onClose();
@@ -57,7 +57,7 @@ export function DocumentForm({ open, onClose, doc, memberId }: { open: boolean; 
           </Field>
         </div>
         <Field label="ID number" hint="Encrypted with your PIN before it is stored.">
-          <Input value={number} onChange={(e) => setNumber(e.target.value)} placeholder={ready ? "e.g. K1234567" : "Decrypting…"} disabled={!ready} className="font-mono" autoComplete="off" />
+          <Input value={number} onChange={(e) => setNumber(e.target.value)} placeholder={!ready ? "Decrypting…" : unreadable ? "Encrypted with another device's PIN — leave blank to keep it" : "e.g. K1234567"} disabled={!ready} className="font-mono" autoComplete="off" />
         </Field>
         <Field label="Label (optional)">
           <Input value={form.label ?? ""} onChange={(e) => set("label", e.target.value)} placeholder="e.g. Schengen tourist visa" />
