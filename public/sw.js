@@ -10,13 +10,13 @@
  *  - Fonts / CDN: cache-first.
  *  - Firebase traffic is never intercepted (it has its own offline persistence).
  */
-const VERSION = 'pack-rat-v2';
+const VERSION = 'pack-rat-v3';
 const SHELL_CACHE = `${VERSION}-shell`;
 const DATA_CACHE = `${VERSION}-data`;
 const FONT_CACHE = `${VERSION}-fonts`;
 const SHELL_URLS = ['/', '/index.html', '/manifest.webmanifest', '/icon.svg', '/icon-512.png'];
 
-const DATA_HOSTS = ['api.open-meteo.com', 'api.frankfurter.app', 'aerodatabox.p.rapidapi.com', 'nominatim.openstreetmap.org'];
+const DATA_HOSTS = ['api.open-meteo.com', 'api.frankfurter.app', 'open.er-api.com', 'api.adsbdb.com', 'images.kiwi.com', 'aerodatabox.p.rapidapi.com', 'nominatim.openstreetmap.org'];
 const FONT_HOSTS = ['fonts.googleapis.com', 'fonts.gstatic.com'];
 const BYPASS_HOSTS = ['firestore.googleapis.com', 'firebasestorage.googleapis.com', 'identitytoolkit.googleapis.com', 'securetoken.googleapis.com', 'www.googleapis.com'];
 

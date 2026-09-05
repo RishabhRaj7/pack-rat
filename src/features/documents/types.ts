@@ -9,16 +9,16 @@ export type DocumentType =
   | "birth_certificate"
   | "other";
 
-export const DOCUMENT_TYPES: { value: DocumentType; label: string; icon: string }[] = [
-  { value: "passport", label: "Passport", icon: "🛂" },
-  { value: "national_id", label: "National ID", icon: "🪪" },
-  { value: "driving_license", label: "Driving license", icon: "🚗" },
-  { value: "visa", label: "Visa", icon: "🧾" },
-  { value: "residence_permit", label: "Residence permit", icon: "🏠" },
-  { value: "travel_insurance", label: "Travel insurance", icon: "🛡️" },
-  { value: "vaccination", label: "Vaccination record", icon: "💉" },
-  { value: "birth_certificate", label: "Birth certificate", icon: "📜" },
-  { value: "other", label: "Other", icon: "📄" },
+export const DOCUMENT_TYPES: { value: DocumentType; label: string }[] = [
+  { value: "passport", label: "Passport" },
+  { value: "national_id", label: "National ID" },
+  { value: "driving_license", label: "Driving license" },
+  { value: "visa", label: "Visa" },
+  { value: "residence_permit", label: "Residence permit" },
+  { value: "travel_insurance", label: "Travel insurance" },
+  { value: "vaccination", label: "Vaccination record" },
+  { value: "birth_certificate", label: "Birth certificate" },
+  { value: "other", label: "Other" },
 ];
 
 export interface IdDocument {

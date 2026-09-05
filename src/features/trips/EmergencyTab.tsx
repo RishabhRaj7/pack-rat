@@ -12,7 +12,7 @@ function Dial({ label, number, tone = "danger" }: { label: string; number?: stri
   return (
     <a href={`tel:${number}`} className={`flex items-center justify-between rounded-xl p-3 ${tone === "danger" ? "bg-danger-soft text-danger" : "bg-accent-soft text-accent-strong"}`}>
       <span className="text-xs font-bold uppercase tracking-wide">{label}</span>
-      <span className="flex items-center gap-1.5 text-lg font-extrabold"><Phone size={16} /> {number}</span>
+      <span className="flex items-center gap-1.5 text-lg font-semibold"><Phone size={16} /> {number}</span>
     </a>
   );
 }

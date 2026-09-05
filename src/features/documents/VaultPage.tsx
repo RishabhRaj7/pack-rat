@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { PageHeader, Button, Input, Chip, EmptyState } from "@/components/ui";
 import { useMemberMap } from "@/features/family/hooks";
 import { countryName } from "@/lib/utils";
+import { smartFilter, dateWords } from "@/lib/search";
 import { DOCUMENT_TYPES, expiryStatus, type DocumentType } from "./types";
 import { DocumentCard } from "./DocumentCard";
 import { DocumentForm } from "./DocumentForm";
@@ -18,17 +19,21 @@ export function VaultPage() {
   const [add, setAdd] = useState(false);
 
   const filtered = useMemo(() => {
-    const s = q.trim().toLowerCase();
-    return docs
+    const base = docs
       .filter((d) => type === "all" || d.type === type)
       .filter((d) => !onlyExpiring || ["expired", "critical", "soon"].includes(expiryStatus(d.expiryDate).status))
-      .filter((d) => {
-        if (!s) return true;
-        const m = members.get(d.memberId);
-        const hay = [m?.name, d.label, DOCUMENT_TYPES.find((t) => t.value === d.type)?.label, countryName(d.issuingCountry), d.notes, d.expiryDate].filter(Boolean).join(" ").toLowerCase();
-        return hay.includes(s);
-      })
       .sort((a, b) => (a.expiryDate ?? "9999").localeCompare(b.expiryDate ?? "9999"));
+    // Smart search: person, label, type, country, notes, expiry month/year ("nov 2026"), status words ("expiring", "expired").
+    return smartFilter(base, q, (d) => {
+      const m = members.get(d.memberId);
+      const st = expiryStatus(d.expiryDate).status;
+      return [
+        { value: [m?.name, d.label, DOCUMENT_TYPES.find((t) => t.value === d.type)?.label], weight: 2 },
+        { value: [countryName(d.issuingCountry), d.issuingCountry, d.notes] },
+        { value: dateWords(d.expiryDate, d.issueDate) },
+        { value: st === "expired" ? ["expired"] : st === "critical" || st === "soon" ? ["expiring", "expires soon", "renew"] : ["valid"] },
+      ];
+    });
   }, [docs, q, type, onlyExpiring, members]);
 
   const expiringCount = docs.filter((d) => ["expired", "critical", "soon"].includes(expiryStatus(d.expiryDate).status)).length;
@@ -52,7 +57,7 @@ export function VaultPage() {
         <Chip active={type === "all"} onClick={() => setType("all")}>All</Chip>
         {DOCUMENT_TYPES.map((t) => (
           <Chip key={t.value} active={type === t.value} onClick={() => setType(t.value)}>
-            {t.icon} {t.label}
+            {t.label}
           </Chip>
         ))}
         <Chip active={onlyExpiring} onClick={() => setOnlyExpiring((v) => !v)} className={onlyExpiring ? "!border-danger !bg-danger" : ""}>

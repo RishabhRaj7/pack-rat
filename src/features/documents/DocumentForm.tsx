@@ -51,7 +51,7 @@ export function DocumentForm({ open, onClose, doc, memberId }: { open: boolean; 
           <Field label="ID type">
             <Select value={form.type} onChange={(e) => set("type", e.target.value as DocumentType)}>
               {DOCUMENT_TYPES.map((t) => (
-                <option key={t.value} value={t.value}>{t.icon} {t.label}</option>
+                <option key={t.value} value={t.value}>{t.label}</option>
               ))}
             </Select>
           </Field>

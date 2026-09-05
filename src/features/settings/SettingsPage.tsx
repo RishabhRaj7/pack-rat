@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { Sun, Moon, MonitorSmartphone, Fingerprint, KeyRound, Lock, Download, Upload, Trash2, Cloud, CloudOff, Users, Plus, Pencil, ChevronRight, Sparkles, Smartphone } from "lucide-react";
+import { Sun, Moon, MonitorSmartphone, KeyRound, Lock, Download, Upload, Trash2, Cloud, CloudOff, Users, Plus, Pencil, ChevronRight, Sparkles, Smartphone } from "lucide-react";
 import { Card, Button, Segmented, Toggle, Select, Avatar, Modal, Input, Field, Badge } from "@/components/ui";
 import { useTheme } from "@/lib/theme";
 import { useLock } from "@/features/lock/LockProvider";
@@ -15,14 +15,14 @@ import { exportBackup, importBackup, wipeAllData } from "./backup";
 function Section({ title, icon, children }: { title: string; icon: React.ReactNode; children: React.ReactNode }) {
   return (
     <Card className="overflow-hidden">
-      <div className="flex items-center gap-2 border-b border-line px-4 py-3"><span className="text-accent">{icon}</span><h2 className="font-bold">{title}</h2></div>
+      <div className="flex items-center gap-2 px-4 pt-4 pb-2"><span className="text-accent">{icon}</span><h2 className="font-semibold">{title}</h2></div>
       <div className="divide-y divide-line">{children}</div>
     </Card>
   );
 }
 function Row({ label, hint, children }: { label: string; hint?: string; children?: React.ReactNode }) {
   return (
-    <div className="flex items-center justify-between gap-4 px-4 py-3"><div><p className="text-sm font-semibold">{label}</p>{hint && <p className="text-xs text-muted">{hint}</p>}</div><div className="shrink-0">{children}</div></div>
+    <div className="flex items-center justify-between gap-4 px-4 py-3"><div><p className="text-sm font-medium">{label}</p>{hint && <p className="text-xs text-muted">{hint}</p>}</div><div className="shrink-0">{children}</div></div>
   );
 }
 
@@ -51,12 +51,12 @@ export function SettingsPage() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-extrabold tracking-tight">Settings</h1>
+      <h1 className="text-[28px] font-semibold tracking-tight">Settings</h1>
       {msg && <div className="rounded-xl bg-ok-soft px-4 py-2 text-sm font-semibold text-ok">{msg}</div>}
 
       <Section title="Appearance" icon={<Sun size={18} />}>
-        <Row label="Theme" hint="Dark mode uses true black for AMOLED screens.">
-          <Segmented value={mode} onChange={setMode} options={[{ value: "light", label: <span className="flex items-center gap-1"><Sun size={13} /> Light</span> }, { value: "dark", label: <span className="flex items-center gap-1"><Moon size={13} /> Dark · AMOLED</span> }, { value: "system", label: <span className="flex items-center gap-1"><MonitorSmartphone size={13} /> Auto</span> }]} />
+        <Row label="Theme" hint="Tonal Material You palette in light and dark.">
+          <Segmented value={mode} onChange={setMode} options={[{ value: "light", label: <span className="flex items-center gap-1"><Sun size={13} /> Light</span> }, { value: "dark", label: <span className="flex items-center gap-1"><Moon size={13} /> Dark</span> }, { value: "system", label: <span className="flex items-center gap-1"><MonitorSmartphone size={13} /> Auto</span> }]} />
         </Row>
         {installEvt && <Row label="Install app" hint="Add Pack Rat to your home screen for offline access."><Button size="sm" variant="secondary" onClick={() => installEvt.prompt()}><Smartphone size={14} /> Install</Button></Row>}
       </Section>
@@ -76,13 +76,12 @@ export function SettingsPage() {
         <Row label="Biometric unlock" hint={lock.biometricAvailable ? "Face ID / Touch ID / Windows Hello via WebAuthn" : "Not available on this device/browser (needs HTTPS + platform authenticator)"}>
           <Toggle checked={!!lock.config?.biometric} onChange={async (v) => { try { if (v) await lock.enableBio(); else await lock.disableBio(); flash(v ? "Biometric unlock enabled" : "Biometric unlock disabled"); } catch (e) { flash((e as Error).message); } }} label="Biometric" />
         </Row>
-        <Row label="Auto-lock" hint="Lock after the app has been in the background for…">
+        <Row label="Auto-lock" hint={lock.config?.autoLockMinutes === -1 ? "The vault stays unlocked until you lock it manually." : "Lock after the app has been in the background for…"}>
           <Select value={String(lock.config?.autoLockMinutes ?? 5)} onChange={(e) => lock.setAutoLockMinutes(Number(e.target.value))} className="w-36 py-1.5">
-            <option value="0">Immediately</option><option value="1">1 minute</option><option value="5">5 minutes</option><option value="15">15 minutes</option><option value="60">1 hour</option><option value="10080">7 days</option><option value="43200">30 days</option>
+            <option value="0">Immediately</option><option value="1">1 minute</option><option value="5">5 minutes</option><option value="15">15 minutes</option><option value="60">1 hour</option><option value="10080">7 days</option><option value="43200">30 days</option><option value="-1">Never</option>
           </Select>
         </Row>
         <Row label="Change PIN" hint="Re-encrypts all sensitive fields with the new PIN."><Button size="sm" variant="outline" onClick={() => setPinModal(true)}><KeyRound size={14} /> Change</Button></Row>
-        <Row label="Lock now"><Button size="sm" variant="secondary" onClick={lock.lock}><Fingerprint size={14} /> Lock</Button></Row>
       </Section>
 
       <Section title="Cloud sync" icon={sync.configured ? <Cloud size={18} /> : <CloudOff size={18} />}>

@@ -101,10 +101,10 @@ export function LockScreen() {
 
   return (
     <div className="flex min-h-full items-center justify-center bg-bg p-6">
-      <div className="w-full max-w-sm animate-fade-up rounded-3xl border border-line bg-surface p-8 shadow-card">
+      <div className="w-full max-w-sm animate-fade-up rounded-[28px] bg-surface p-8 shadow-card">
         <div className="mb-6 flex flex-col items-center text-center">
           <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-accent-soft text-accent-strong">{isSetup ? <ShieldCheck size={28} /> : <Lock size={26} />}</div>
-          <h1 className="text-xl font-extrabold tracking-tight">{joinExisting ? "Enter your existing vault PIN" : isSetup ? (stage === "enter" ? "Create your vault PIN" : "Confirm your PIN") : "Pack Rat is locked"}</h1>
+          <h1 className="text-xl font-semibold tracking-tight">{joinExisting ? "Enter your existing vault PIN" : isSetup ? (stage === "enter" ? "Create your vault PIN" : "Confirm your PIN") : "Pack Rat is locked"}</h1>
           <p className="mt-1.5 text-sm text-muted">
             {joinExisting
               ? `You're signed in as ${sync.user?.email ?? "your account"}. Enter the PIN you use on your other device — the same PIN unlocks the same data everywhere.`

@@ -1,7 +1,7 @@
 import Dexie, { type Table } from "dexie";
 import type { FamilyMember } from "@/features/family/types";
 import type { IdDocument } from "@/features/documents/types";
-import type { Trip, Place, Hotel, Flight, ItineraryDay, Expense } from "@/features/trips/types";
+import type { Trip, Place, Hotel, Flight, Train, ItineraryDay, Expense } from "@/features/trips/types";
 import type { LoyaltyCard } from "@/features/loyalty/types";
 
 export interface Attachment {
@@ -51,6 +51,7 @@ export const TABLE_LABELS: Record<SyncedTable, string> = {
   places: "Place",
   hotels: "Hotel",
   flights: "Flight",
+  trains: "Train",
   itineraryDays: "Itinerary day",
   expenses: "Expense",
   loyalty: "Loyalty card",
@@ -66,6 +67,7 @@ export const SYNCED_TABLES = [
   "places",
   "hotels",
   "flights",
+  "trains",
   "itineraryDays",
   "expenses",
   "loyalty",
@@ -80,6 +82,7 @@ export class PassportDB extends Dexie {
   places!: Table<Place, string>;
   hotels!: Table<Hotel, string>;
   flights!: Table<Flight, string>;
+  trains!: Table<Train, string>;
   itineraryDays!: Table<ItineraryDay, string>;
   expenses!: Table<Expense, string>;
   loyalty!: Table<LoyaltyCard, string>;
@@ -112,6 +115,39 @@ export class PassportDB extends Dexie {
       places: "id, tripId, updatedAt",
       hotels: "id, tripId, updatedAt",
       flights: "id, tripId, departAt, updatedAt",
+      itineraryDays: "id, tripId, date, updatedAt",
+      expenses: "id, tripId, date, updatedAt",
+      loyalty: "id, memberId, kind, updatedAt",
+      attachments: "id, updatedAt",
+      settings: "key",
+      syncQueue: "++id, table, docId",
+      syncLog: "docKey, table, at",
+    });
+    // v3: train journeys (inside a trip or standalone, like flights).
+    this.version(3).stores({
+      members: "id, name, updatedAt",
+      documents: "id, memberId, type, expiryDate, updatedAt",
+      trips: "id, countryCode, startDate, endDate, updatedAt",
+      places: "id, tripId, updatedAt",
+      hotels: "id, tripId, updatedAt",
+      flights: "id, tripId, departAt, updatedAt",
+      trains: "id, tripId, departAt, updatedAt",
+      itineraryDays: "id, tripId, date, updatedAt",
+      expenses: "id, tripId, date, updatedAt",
+      loyalty: "id, memberId, kind, updatedAt",
+      attachments: "id, updatedAt",
+      settings: "key",
+      syncQueue: "++id, table, docId",
+      syncLog: "docKey, table, at",
+    });
+    this.version(4).stores({
+      members: "id, name, updatedAt",
+      documents: "id, memberId, type, expiryDate, updatedAt",
+      trips: "id, countryCode, startDate, endDate, updatedAt",
+      places: "id, tripId, updatedAt",
+      hotels: "id, tripId, checkIn, updatedAt",
+      flights: "id, tripId, departAt, updatedAt",
+      trains: "id, tripId, departAt, updatedAt",
       itineraryDays: "id, tripId, date, updatedAt",
       expenses: "id, tripId, date, updatedAt",
       loyalty: "id, memberId, kind, updatedAt",

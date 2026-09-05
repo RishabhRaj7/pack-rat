@@ -1,11 +1,11 @@
 export type LoyaltyKind = "airline" | "hotel" | "card" | "rail" | "other";
 
-export const LOYALTY_KINDS: { value: LoyaltyKind; label: string; emoji: string }[] = [
-  { value: "airline", label: "Airline", emoji: "✈️" },
-  { value: "hotel", label: "Hotel", emoji: "🏨" },
-  { value: "card", label: "Credit card", emoji: "💳" },
-  { value: "rail", label: "Rail", emoji: "🚄" },
-  { value: "other", label: "Other", emoji: "🎫" },
+export const LOYALTY_KINDS: { value: LoyaltyKind; label: string }[] = [
+  { value: "airline", label: "Airline" },
+  { value: "hotel", label: "Hotel" },
+  { value: "card", label: "Credit card" },
+  { value: "rail", label: "Rail" },
+  { value: "other", label: "Other" },
 ];
 
 export interface LoyaltyCard {

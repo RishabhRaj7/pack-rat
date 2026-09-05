@@ -16,7 +16,7 @@ export function applyTheme(mode: ThemeMode) {
   const resolved = resolve(mode);
   document.documentElement.classList.toggle("dark", resolved === "dark");
   const meta = document.querySelector('meta[name="theme-color"]:not([media])') as HTMLMetaElement | null;
-  const color = resolved === "dark" ? "#000000" : "#0B5D67";
+  const color = resolved === "dark" ? "#0e1514" : "#f3f8f8";
   if (meta) meta.content = color;
   else {
     const m = document.createElement("meta");

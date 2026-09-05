@@ -7,7 +7,7 @@ import { db } from "@/lib/db";
 import { PageHeader, Button, Card, Avatar, Badge, EmptyState } from "@/components/ui";
 import { useAttachmentUrl } from "@/components/attachments";
 import { expiryStatus } from "@/features/documents/types";
-import { countryName, flag } from "@/lib/utils";
+import { countryName } from "@/lib/utils";
 import { useMembers } from "./hooks";
 import { MemberForm } from "./MemberForm";
 import type { FamilyMember } from "./types";
@@ -24,7 +24,7 @@ function MemberCard({ m }: { m: FamilyMember }) {
         <div className="min-w-0 flex-1">
           <p className="truncate font-bold">{m.name}</p>
           <p className="text-xs text-muted">
-            {[m.relation, m.nationality && `${flag(m.nationality)} ${countryName(m.nationality)}`].filter(Boolean).join(" · ")}
+            {[m.relation, m.nationality && countryName(m.nationality)].filter(Boolean).join(" · ")}
           </p>
           <div className="mt-1.5 flex flex-wrap gap-1.5">
             <Badge>{docs.length} document{docs.length === 1 ? "" : "s"}</Badge>

@@ -1,76 +1,84 @@
-@import url("https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Roboto+Flex:opsz,wght@8..144,400;8..144,500;8..144,600;8..144,700&display=swap");
 @import "tailwindcss";
 
 @custom-variant dark (&:where(.dark, .dark *));
 
-/* ---------- Passport Teal palette ---------- */
+/* ---------- Material You inspired tonal palette (seed: teal) ---------- */
 @theme {
-  --font-sans: "Manrope", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-sans: "Inter", "Roboto Flex", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: "Roboto Flex", "Inter", ui-sans-serif, system-ui, sans-serif;
 
-  --color-teal-deep: #0b5d67;
-  --color-teal: #0f8a8b;
-  --color-mint: #8fd6c8;
-  --color-cream: #f2e9d8;
-  --color-navy: #1c1f2a;
-
-  /* semantic status */
-  --color-brick: #b5493b;
-  --color-brick-soft: #f3d9d4;
-  --color-amber: #d08a1d;
-  --color-amber-soft: #f7e6c4;
+  /* legacy names kept for compatibility */
+  --color-teal-deep: #004f4f;
+  --color-teal: #006a6a;
+  --color-mint: #cce8e7;
+  --color-cream: #f3f8f8;
+  --color-navy: #0e1514;
+  --color-brick: #ba1a1a;
+  --color-brick-soft: #ffdad6;
+  --color-amber: #7a5900;
+  --color-amber-soft: #ffe08f;
 
   --radius-xl2: 1.25rem;
+  --radius-m3: 1.75rem;
 }
 
-/* ---------- Theme tokens (light) ---------- */
+/* ---------- Light scheme ---------- */
 :root {
-  --bg: #f2e9d8;
-  --surface: #fffcf6;
-  --surface-2: #f8f1e4;
-  --line: rgba(11, 93, 103, 0.14);
-  --fg: #1c1f2a;
-  --muted: #5c6470;
-  --accent: #0f8a8b;
-  --accent-strong: #0b5d67;
-  --accent-soft: rgba(143, 214, 200, 0.35);
+  --bg: #f3f8f8; /* surface */
+  --surface: #ffffff; /* surface-container-lowest */
+  --surface-2: #e9efef; /* surface-container */
+  --surface-3: #dfe6e6; /* surface-container-high */
+  --line: #c9d2d1; /* outline-variant */
+  --fg: #161d1d; /* on-surface */
+  --muted: #4d5756; /* on-surface-variant */
+  --accent: #006a6a; /* primary */
+  --accent-strong: #004f4f;
+  --accent-soft: #cce8e7; /* secondary-container */
   --on-accent: #ffffff;
-  --ok: #0f8a8b;
-  --ok-soft: rgba(143, 214, 200, 0.4);
-  --warn: #c07f12;
-  --warn-soft: rgba(208, 138, 29, 0.16);
-  --danger: #b5493b;
-  --danger-soft: rgba(181, 73, 59, 0.14);
-  --shadow: 0 1px 2px rgba(28, 31, 42, 0.05), 0 8px 24px -12px rgba(11, 93, 103, 0.25);
+  --primary-container: #9ff1f0;
+  --on-primary-container: #002020;
+  --ok: #1d6b3d;
+  --ok-soft: #c6efd3;
+  --warn: #7a5900;
+  --warn-soft: #ffe7a6;
+  --danger: #ba1a1a;
+  --danger-soft: #ffdad6;
+  --shadow: 0 1px 2px rgba(22, 29, 29, 0.06), 0 2px 6px -2px rgba(22, 29, 29, 0.08);
   color-scheme: light;
 }
 
-/* ---------- Dark / AMOLED ---------- */
+/* ---------- Dark scheme (M3 tonal — not pure black) ---------- */
 .dark {
-  --bg: #000000;
-  --surface: #1c1f2a;
-  --surface-2: #262a38;
-  --line: rgba(143, 214, 200, 0.14);
-  --fg: #f2e9d8;
-  --muted: #9aa3ad;
-  --accent: #8fd6c8;
-  --accent-strong: #b9e7dd;
-  --accent-soft: rgba(15, 138, 139, 0.28);
-  --on-accent: #0b1f22;
-  --ok: #8fd6c8;
-  --ok-soft: rgba(143, 214, 200, 0.16);
-  --warn: #e3a63a;
-  --warn-soft: rgba(227, 166, 58, 0.16);
-  --danger: #e07463;
-  --danger-soft: rgba(224, 116, 99, 0.16);
-  --shadow: 0 0 0 1px rgba(143, 214, 200, 0.06);
+  --bg: #0e1514;
+  --surface: #1a2121;
+  --surface-2: #232a2a;
+  --surface-3: #2d3434;
+  --line: #3a4443;
+  --fg: #dde4e3;
+  --muted: #a6b1b0;
+  --accent: #4cdada;
+  --accent-strong: #8ff4f3;
+  --accent-soft: #2e4747;
+  --on-accent: #003737;
+  --primary-container: #004f4f;
+  --on-primary-container: #9ff1f0;
+  --ok: #86dfa2;
+  --ok-soft: #1f3b2a;
+  --warn: #f3c85a;
+  --warn-soft: #3b3113;
+  --danger: #ffb4ab;
+  --danger-soft: #4b1c18;
+  --shadow: 0 0 0 1px rgba(255, 255, 255, 0.03);
   color-scheme: dark;
 }
 
-/* expose tokens as Tailwind utilities: bg-bg, bg-surface, text-fg, text-muted, border-line, text-accent ... */
+/* expose tokens as Tailwind utilities */
 @theme inline {
   --color-bg: var(--bg);
   --color-surface: var(--surface);
   --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
   --color-line: var(--line);
   --color-fg: var(--fg);
   --color-muted: var(--muted);
@@ -78,6 +86,8 @@
   --color-accent-strong: var(--accent-strong);
   --color-accent-soft: var(--accent-soft);
   --color-on-accent: var(--on-accent);
+  --color-primary-container: var(--primary-container);
+  --color-on-primary-container: var(--on-primary-container);
   --color-ok: var(--ok);
   --color-ok-soft: var(--ok-soft);
   --color-warn: var(--warn);
@@ -95,22 +105,30 @@ body,
 
 body {
   @apply bg-bg text-fg font-sans antialiased;
-  font-feature-settings: "ss01", "cv11";
+  font-feature-settings: "cv11", "ss01", "tnum";
   -webkit-tap-highlight-color: transparent;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-display);
+  letter-spacing: -0.01em;
 }
 
 ::selection {
   background: var(--accent-soft);
 }
 
-/* subtle scrollbar */
 * {
   scrollbar-width: thin;
   scrollbar-color: var(--line) transparent;
 }
 
-input[type="date"]::-webkit-calendar-picker-indicator {
-  opacity: 0.6;
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="time"]::-webkit-calendar-picker-indicator,
+input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+  opacity: 0.55;
 }
 
 @keyframes fade-up {
@@ -124,9 +142,31 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   }
 }
 .animate-fade-up {
-  animation: fade-up 0.25s ease-out both;
+  animation: fade-up 0.22s cubic-bezier(0.2, 0, 0, 1) both;
 }
 
 .safe-bottom {
   padding-bottom: max(env(safe-area-inset-bottom), 0.5rem);
+}
+
+/* M3 state layer helper */
+.state-layer {
+  position: relative;
+  isolation: isolate;
+}
+.state-layer::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: currentColor;
+  opacity: 0;
+  transition: opacity 0.15s;
+  pointer-events: none;
+}
+.state-layer:hover::after {
+  opacity: 0.08;
+}
+.state-layer:active::after {
+  opacity: 0.12;
 }

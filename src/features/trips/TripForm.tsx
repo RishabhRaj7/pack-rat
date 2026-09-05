@@ -8,14 +8,12 @@ import { geocode } from "@/lib/services";
 import { useMembers } from "@/features/family/hooks";
 import type { Trip } from "./types";
 
-const EMOJIS = ["🧳", "🌏", "🏝️", "🏙️", "🗼", "🏔️", "🕌", "🏯", "🌴", "🎡", "🛕", "🚄"];
-
 /** "+ New Trip" flow. Also used for editing. Creates the itinerary day skeleton automatically. */
 export function TripForm({ open, onClose, trip }: { open: boolean; onClose: () => void; trip?: Trip }) {
   const nav = useNavigate();
   const members = useMembers() ?? [];
   const [form, setForm] = useState<Partial<Trip>>(
-    trip ?? { title: "", country: "", countryCode: "", city: "", startDate: "", endDate: "", currency: "", coverEmoji: "🧳", travellerIds: members.map((m) => m.id), emergency: {} }
+    trip ?? { title: "", country: "", countryCode: "", city: "", startDate: "", endDate: "", currency: "", coverEmoji: "", travellerIds: members.map((m) => m.id), emergency: {} }
   );
   const [saving, setSaving] = useState(false);
   const set = (k: keyof Trip, v: unknown) => setForm((f) => ({ ...f, [k]: v }));
@@ -43,11 +41,6 @@ export function TripForm({ open, onClose, trip }: { open: boolean; onClose: () =
   return (
     <Modal open={open} onClose={onClose} title={trip ? "Edit trip" : "Plan a new trip"} footer={<><Button variant="ghost" onClick={onClose}>Cancel</Button><Button onClick={save} disabled={!valid} loading={saving}>{trip ? "Save" : "Create trip"}</Button></>}>
       <div className="space-y-4">
-        <div className="flex flex-wrap gap-1.5">
-          {EMOJIS.map((e) => (
-            <button key={e} type="button" onClick={() => set("coverEmoji", e)} className={cn("h-10 w-10 rounded-xl text-xl transition", form.coverEmoji === e ? "bg-accent-soft ring-2 ring-accent" : "bg-surface-2 hover:bg-accent-soft")}>{e}</button>
-          ))}
-        </div>
         <Field label="Trip name"><Input autoFocus value={form.title ?? ""} onChange={(e) => set("title", e.target.value)} placeholder="Singapore family getaway" /></Field>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Country">
@@ -68,7 +61,7 @@ export function TripForm({ open, onClose, trip }: { open: boolean; onClose: () =
           <Field label="Start"><Input type="date" value={form.startDate ?? ""} onChange={(e) => set("startDate", e.target.value)} /></Field>
           <Field label="End"><Input type="date" min={form.startDate} value={form.endDate ?? ""} onChange={(e) => set("endDate", e.target.value)} /></Field>
         </div>
-        <Field label="Local currency"><Input value={form.currency ?? ""} onChange={(e) => set("currency", e.target.value.toUpperCase())} maxLength={3} className="uppercase" /></Field>
+        <Field label="Local currency" hint="Auto-filled from the country; change if needed."><Input value={form.currency ?? ""} onChange={(e) => set("currency", e.target.value.toUpperCase())} maxLength={3} className="uppercase" /></Field>
         {members.length > 0 && (
           <Field label="Who's going?">
             <div className="flex flex-wrap gap-2">

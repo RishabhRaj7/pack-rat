@@ -9,7 +9,7 @@ import { DocumentCard } from "@/features/documents/DocumentCard";
 import { DocumentForm } from "@/features/documents/DocumentForm";
 import { LoyaltyCardRow, LoyaltyForm } from "@/features/loyalty/LoyaltyPage";
 import { deleteMemberCascade } from "@/lib/repo";
-import { countryName, flag, fmtDate } from "@/lib/utils";
+import { countryName, fmtDate } from "@/lib/utils";
 import { useMember } from "./hooks";
 import { MemberForm } from "./MemberForm";
 
@@ -40,7 +40,7 @@ export function ProfilePage() {
             <Avatar name={member.name} src={url} size={56} /> {member.name}
           </span>
         }
-        subtitle={[member.relation, member.nationality && `${flag(member.nationality)} ${countryName(member.nationality)}`, member.dateOfBirth && `Born ${fmtDate(member.dateOfBirth)}`].filter(Boolean).join(" · ")}
+        subtitle={[member.relation, member.nationality && countryName(member.nationality), member.dateOfBirth && `Born ${fmtDate(member.dateOfBirth)}`].filter(Boolean).join(" · ")}
         action={
           <div className="flex gap-2">
             <Button variant="outline" size="icon" onClick={() => setEdit(true)} title="Edit"><Pencil size={16} /></Button>
@@ -92,7 +92,7 @@ export function ProfilePage() {
           <div className="flex flex-wrap gap-2">
             {trips.map((t) => (
               <Link key={t.id} to={`/trips/${t.id}`}>
-                <Badge tone="accent" className="px-3 py-1 text-xs">{t.coverEmoji} {t.title}</Badge>
+                <Badge tone="accent" className="px-3 py-1 text-xs">{t.title}</Badge>
               </Link>
             ))}
           </div>

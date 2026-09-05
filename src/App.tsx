@@ -10,6 +10,7 @@ import { FamilyPage } from "@/features/family/FamilyPage";
 import { ProfilePage } from "@/features/family/ProfilePage";
 import { VaultPage } from "@/features/documents/VaultPage";
 import { LoyaltyPage } from "@/features/loyalty/LoyaltyPage";
+import { ConvertPage } from "@/features/convert/ConvertPage";
 import { SettingsPage } from "@/features/settings/SettingsPage";
 import { SharePage } from "@/features/share/SharePage";
 import { initSync } from "@/lib/sync";
@@ -41,6 +42,8 @@ function Gate() {
         <Route path="family" element={<FamilyPage />} />
         <Route path="family/:id" element={<ProfilePage />} />
         <Route path="vault" element={<VaultPage />} />
+        <Route path="convert" element={<ConvertPage />} />
+        {/* Loyalty is hidden from navigation for now but the route stays reachable. */}
         <Route path="loyalty" element={<LoyaltyPage />} />
         <Route path="settings" element={<SettingsPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />

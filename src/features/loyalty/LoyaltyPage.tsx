@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { LOYALTY_ICONS, IconTile } from "@/components/icons";
 import { useLiveQuery } from "dexie-react-hooks";
 import { Plus, Pencil, Trash2, CreditCard } from "lucide-react";
 import { db } from "@/lib/db";
@@ -28,7 +29,7 @@ export function LoyaltyForm({ open, onClose, card, memberId }: { open: boolean; 
         <div className="grid grid-cols-2 gap-3">
           <Field label="Type">
             <Select value={form.kind} onChange={(e) => set("kind", e.target.value as LoyaltyKind)}>
-              {LOYALTY_KINDS.map((k) => <option key={k.value} value={k.value}>{k.emoji} {k.label}</option>)}
+              {LOYALTY_KINDS.map((k) => <option key={k.value} value={k.value}>{k.label}</option>)}
             </Select>
           </Field>
           <Field label="Owner">
@@ -55,11 +56,10 @@ export function LoyaltyForm({ open, onClose, card, memberId }: { open: boolean; 
 export function LoyaltyCardRow({ card, showOwner }: { card: LoyaltyCard; showOwner?: boolean }) {
   const [edit, setEdit] = useState(false);
   const members = useMemberMap();
-  const kind = LOYALTY_KINDS.find((k) => k.value === card.kind)!;
   const owner = card.memberId ? members.get(card.memberId) : undefined;
   return (
     <Card className="flex items-start gap-3 p-4">
-      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent-soft text-lg">{kind.emoji}</div>
+      <IconTile icon={LOYALTY_ICONS[card.kind]} />
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
           <p className="font-bold">{card.program}</p>
@@ -68,7 +68,7 @@ export function LoyaltyCardRow({ card, showOwner }: { card: LoyaltyCard; showOwn
           <SyncBadge table="loyalty" id={card.id} />
         </div>
         <div className="mt-1"><SecretField value={card.numberEnc} /></div>
-        {card.preferredFor && <p className="mt-1.5 text-xs text-muted">💡 {card.preferredFor}</p>}
+        {card.preferredFor && <p className="mt-1.5 text-xs text-muted">{card.preferredFor}</p>}
         {showOwner && (
           <p className="mt-1.5 inline-flex items-center gap-1.5 text-xs text-muted">{owner ? <><Avatar name={owner.name} size={16} /> {owner.name}</> : "Shared"}</p>
         )}
@@ -92,7 +92,7 @@ export function LoyaltyPage() {
       <PageHeader title="Loyalty & cards" subtitle="Frequent flyer numbers, hotel status, and which card to book with" action={<Button onClick={() => setAdd(true)}><Plus size={16} /> Add</Button>} />
       <div className="mb-5 flex flex-wrap gap-2">
         <Chip active={kind === "all"} onClick={() => setKind("all")}>All</Chip>
-        {LOYALTY_KINDS.map((k) => <Chip key={k.value} active={kind === k.value} onClick={() => setKind(k.value)}>{k.emoji} {k.label}</Chip>)}
+        {LOYALTY_KINDS.map((k) => <Chip key={k.value} active={kind === k.value} onClick={() => setKind(k.value)}>{k.label}</Chip>)}
       </div>
       {list.length === 0 ? (
         <EmptyState icon={<CreditCard />} title="Nothing here yet" hint="Store airline & hotel loyalty numbers and note which credit card to use for each kind of booking." action={<Button onClick={() => setAdd(true)}><Plus size={16} /> Add first program</Button>} />

@@ -1,4 +1,6 @@
 import { useMemo, useState } from "react";
+import { PLACE_TAG_ICONS } from "@/components/icons";
+import { smartFilter } from "@/lib/search";
 import { Plus, Navigation, Pencil, Trash2, ExternalLink, MapPin, Search, X } from "lucide-react";
 import { Modal, Button, Field, Input, Textarea, Card, Chip, StatusDot, StatusBadge, EmptyState, Badge, Select } from "@/components/ui";
 import { AttachmentList, AttachmentChip } from "@/components/attachments";
@@ -51,7 +53,7 @@ export function PlaceForm({ open, onClose, trip, place }: { open: boolean; onClo
           <div className="flex flex-wrap gap-1.5">
             {PLACE_TAGS.map((t) => {
               const on = form.tags?.includes(t.value);
-              return <Chip key={t.value} active={on} onClick={() => set("tags", on ? form.tags!.filter((x) => x !== t.value) : [...(form.tags ?? []), t.value])}>{t.emoji} {t.label}</Chip>;
+              return <Chip key={t.value} active={on} onClick={() => set("tags", on ? form.tags!.filter((x) => x !== t.value) : [...(form.tags ?? []), t.value])}>{t.label}</Chip>;
             })}
           </div>
         </Field>
@@ -88,7 +90,7 @@ export function PlaceCard({ place, trip, compact }: { place: Place; trip: Trip; 
   const status = placeStatus(place);
   const cycle = (r: Requirement) => put("places", { ...place, requirements: place.requirements.map((x) => (x.id === r.id ? { ...x, state: REQ_STATE_META[x.state].next } : x)) });
   return (
-    <Card className={cn("p-4", status === "action" && "border-l-4 border-l-danger", status === "progress" && "border-l-4 border-l-warn", status === "ready" && "border-l-4 border-l-ok")}>
+    <Card className={cn("p-4", status === "action" && "shadow-[inset_4px_0_0_var(--danger)]", status === "progress" && "shadow-[inset_4px_0_0_var(--warn)]", status === "ready" && "shadow-[inset_4px_0_0_var(--ok)]")}>
       <div className="flex items-start gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
@@ -97,7 +99,7 @@ export function PlaceCard({ place, trip, compact }: { place: Place; trip: Trip; 
           </div>
           {place.address && <p className="mt-0.5 flex items-center gap-1 text-xs text-muted"><MapPin size={11} /> {place.address}</p>}
           <div className="mt-1.5 flex flex-wrap gap-1">
-            {place.tags.map((t) => { const meta = PLACE_TAGS.find((x) => x.value === t)!; return <Badge key={t}>{meta.emoji} {meta.label}</Badge>; })}
+            {place.tags.map((t) => { const meta = PLACE_TAGS.find((x) => x.value === t)!; const I = PLACE_TAG_ICONS[t]; return <Badge key={t}><I size={11} /> {meta.label}</Badge>; })}
             {place.estimatedCost != null && <Badge tone="accent">~{fmtMoney(place.estimatedCost, trip.currency)}</Badge>}
           </div>
           {!compact && place.notes && <p className="mt-2 text-sm text-muted">{place.notes}</p>}
@@ -124,7 +126,7 @@ export function PlacesTab({ trip }: { trip: Trip }) {
   const [tag, setTag] = useState<PlaceTag | "all">("all");
   const [st, setSt] = useState<ReadyStatus | "all">("all");
   const [add, setAdd] = useState(false);
-  const list = useMemo(() => places.filter((p) => (tag === "all" || p.tags.includes(tag)) && (st === "all" || placeStatus(p) === st) && (!q || (p.name + " " + (p.notes ?? "") + " " + (p.address ?? "")).toLowerCase().includes(q.toLowerCase()))), [places, q, tag, st]);
+  const list = useMemo(() => smartFilter(places.filter((p) => (tag === "all" || p.tags.includes(tag)) && (st === "all" || placeStatus(p) === st)), q, (p) => [{ value: p.name, weight: 2 }, { value: p.address }, { value: p.notes }, { value: p.tags.map((t) => PLACE_TAGS.find((x) => x.value === t)?.label) }, { value: p.requirements.map((r) => r.label) }]), [places, q, tag, st]);
   const counts = { action: 0, progress: 0, ready: 0 };
   places.forEach((p) => counts[placeStatus(p)]++);
   return (
@@ -136,15 +138,15 @@ export function PlacesTab({ trip }: { trip: Trip }) {
         </div>
         <Select value={st} onChange={(e) => setSt(e.target.value as ReadyStatus | "all")} className="w-auto">
           <option value="all">All statuses</option>
-          <option value="action">🔴 Action needed ({counts.action})</option>
-          <option value="progress">🟠 In progress ({counts.progress})</option>
-          <option value="ready">🟢 Confirmed ({counts.ready})</option>
+          <option value="action">Action needed ({counts.action})</option>
+          <option value="progress">In progress ({counts.progress})</option>
+          <option value="ready">Confirmed ({counts.ready})</option>
         </Select>
         <Button onClick={() => setAdd(true)}><Plus size={16} /> Add place</Button>
       </div>
       <div className="mb-4 flex flex-wrap gap-1.5">
         <Chip active={tag === "all"} onClick={() => setTag("all")}>All</Chip>
-        {PLACE_TAGS.map((t) => <Chip key={t.value} active={tag === t.value} onClick={() => setTag(t.value)}>{t.emoji} {t.label}</Chip>)}
+        {PLACE_TAGS.map((t) => <Chip key={t.value} active={tag === t.value} onClick={() => setTag(t.value)}>{t.label}</Chip>)}
       </div>
       {list.length === 0 ? (
         <EmptyState icon={<MapPin />} title={places.length ? "No places match" : "No places yet"} hint={places.length ? "" : "Add the spots you want to explore — food, sights, shopping. Then build your itinerary from them."} action={!places.length && <Button onClick={() => setAdd(true)}><Plus size={16} /> Add first place</Button>} />

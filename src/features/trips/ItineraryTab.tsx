@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
+import { weatherIcon } from "@/components/icons";
 import { DndContext, closestCenter, MouseSensor, TouchSensor, KeyboardSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical, Plus, X, Share2, Navigation, CloudSun, ShoppingBag, Ban, StickyNote, Check, Copy, CalendarPlus, Sparkles } from "lucide-react";
+import { GripVertical, Plus, X, Share2, Navigation, CloudSun, ShoppingBag, Ban, StickyNote, Check, Copy, CalendarPlus, Sparkles, Umbrella, Sun, Wind } from "lucide-react";
 import { Button, Card, StatusDot, Badge, Textarea, Modal, Input, EmptyState, Field } from "@/components/ui";
 import { put, newId, remove } from "@/lib/repo";
 import { fmtDate, dateRange, mapsDirectionsUrl, cn, copyToClipboard, today } from "@/lib/utils";
@@ -16,12 +17,12 @@ function SortablePlace({ place, trip, index, onRemove }: { place: Place; trip: T
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: place.id });
   const status = placeStatus(place);
   return (
-    <div ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition }} className={cn("flex items-center gap-2 rounded-xl border border-line bg-surface p-2.5", isDragging && "z-10 shadow-lg ring-2 ring-accent/40")}>
+    <div ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition }} className={cn("flex items-center gap-2 rounded-2xl bg-surface-2 p-2.5", isDragging && "z-10 shadow-lg ring-2 ring-accent/40")}>
       <button {...attributes} {...listeners} className="cursor-grab touch-none rounded-lg p-1 text-muted hover:bg-surface-2 active:cursor-grabbing" aria-label="Drag to reorder"><GripVertical size={16} /></button>
       <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-accent text-[11px] font-bold text-on-accent">{index + 1}</span>
       <div className="min-w-0 flex-1">
         <p className="flex items-center gap-1.5 truncate text-sm font-semibold"><StatusDot status={status} /> {place.name}</p>
-        <p className="truncate text-[11px] text-muted">{place.tags.map((t) => PLACE_TAGS.find((x) => x.value === t)?.emoji).join(" ")} {place.address}</p>
+        <p className="truncate text-[11px] text-muted">{place.tags.map((t) => PLACE_TAGS.find((x) => x.value === t)?.label).join(" · ")}{place.tags.length && place.address ? " · " : ""}{place.address}</p>
       </div>
       <a href={mapsDirectionsUrl({ name: place.name, address: place.address || trip.city, lat: place.lat, lng: place.lng })} target="_blank" rel="noreferrer" className="rounded-lg p-1.5 text-accent hover:bg-accent-soft" title="Navigate"><Navigation size={14} /></a>
       <button onClick={onRemove} className="rounded-lg p-1.5 text-muted hover:bg-danger-soft hover:text-danger" title="Remove from day"><X size={14} /></button>
@@ -52,14 +53,14 @@ function DayPrepPanel({ trip, day, forecast, stale }: { trip: Trip; day: Itinera
   return (
     <Card className="p-4">
       <h3 className="mb-3 flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-muted"><Sparkles size={14} className="text-accent" /> Daily prep · {fmtDate(day.date, "EEE d MMM")}</h3>
-      <div className="rounded-xl bg-gradient-to-br from-teal-deep to-teal p-4 text-white dark:from-navy dark:to-teal-deep">
+      <div className="rounded-2xl bg-primary-container p-4 text-on-primary-container">
         <div className="flex items-center justify-between">
-          <div><p className="text-xs uppercase tracking-wide text-white/70"><CloudSun size={12} className="mr-1 inline" /> Forecast · {trip.city}</p>
-            {forecast ? <p className="mt-1 text-2xl font-extrabold">{Math.round(forecast.tMax)}° <span className="text-base font-semibold text-white/70">/ {Math.round(forecast.tMin)}°</span></p> : <p className="mt-1 text-sm font-semibold">{farOut ? "Forecast opens 16 days before" : "Forecast unavailable offline"}</p>}
+          <div><p className="text-xs uppercase tracking-wide text-on-primary-container/70"><CloudSun size={12} className="mr-1 inline" /> Forecast · {trip.city}</p>
+            {forecast ? <p className="mt-1 text-2xl font-semibold">{Math.round(forecast.tMax)}° <span className="text-base font-semibold text-on-primary-container/70">/ {Math.round(forecast.tMin)}°</span></p> : <p className="mt-1 text-sm font-semibold">{farOut ? "Forecast opens 16 days before" : "Forecast unavailable offline"}</p>}
           </div>
-          {w && <div className="text-right"><p className="text-4xl">{w.emoji}</p><p className="text-xs font-semibold">{w.label}</p></div>}
+          {w && forecast && <div className="flex flex-col items-end text-right">{(() => { const W = weatherIcon(forecast.code); return <W size={36} strokeWidth={1.5} />; })()}<p className="mt-1 text-xs font-semibold">{w.label}</p></div>}
         </div>
-        {forecast && <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-white/85"><span>☔ {forecast.precipProb}% · {forecast.precipMm.toFixed(1)} mm</span><span>☀️ UV {forecast.uv.toFixed(0)}</span><span>💨 {Math.round(forecast.windMax)} km/h</span>{stale && <span className="text-white/60">cached</span>}</div>}
+        {forecast && <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-on-primary-container/85"><span className="inline-flex items-center gap-1"><Umbrella size={12} /> {forecast.precipProb}% · {forecast.precipMm.toFixed(1)} mm</span><span className="inline-flex items-center gap-1"><Sun size={12} /> UV {forecast.uv.toFixed(0)}</span><span className="inline-flex items-center gap-1"><Wind size={12} /> {Math.round(forecast.windMax)} km/h</span>{stale && <span className="text-on-primary-container/60">cached</span>}</div>}
       </div>
       {forecast && (
         <div className="mt-3">
@@ -130,7 +131,7 @@ export function ItineraryTab({ trip }: { trip: Trip }) {
             return (
               <button key={d.id} type="button" data-strip-key={d.id} onClick={() => setSelectedId(d.id)} className={cn("flex min-w-[76px] shrink-0 flex-col items-center rounded-xl border px-3 py-2 transition", selected?.id === d.id ? "border-accent bg-accent text-on-accent" : "border-line bg-surface hover:border-accent/50")}>
                 <span className="text-[10px] font-bold uppercase opacity-70">Day {i + 1}</span>
-                <span className="text-sm font-extrabold">{fmtDate(d.date, "d MMM")}</span>
+                <span className="text-sm font-semibold">{fmtDate(d.date, "d MMM")}</span>
                 <span className="mt-0.5 flex items-center gap-1 text-[10px] opacity-80">{dayPlaces.length > 0 && <StatusDot status={worst} className="h-1.5 w-1.5 [&>span]:h-1.5 [&>span]:w-1.5" />} {dayPlaces.length} stops</span>
               </button>
             );

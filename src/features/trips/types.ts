@@ -1,15 +1,15 @@
 export type PlaceTag = "food" | "sightseeing" | "shopping" | "nature" | "culture" | "nightlife" | "kids" | "transport" | "other";
 
-export const PLACE_TAGS: { value: PlaceTag; label: string; emoji: string }[] = [
-  { value: "food", label: "Food", emoji: "🍜" },
-  { value: "sightseeing", label: "Sightseeing", emoji: "📸" },
-  { value: "shopping", label: "Shopping", emoji: "🛍️" },
-  { value: "nature", label: "Nature", emoji: "🌿" },
-  { value: "culture", label: "Culture", emoji: "🏛️" },
-  { value: "nightlife", label: "Nightlife", emoji: "🌙" },
-  { value: "kids", label: "Kids", emoji: "🎠" },
-  { value: "transport", label: "Transport", emoji: "🚆" },
-  { value: "other", label: "Other", emoji: "📍" },
+export const PLACE_TAGS: { value: PlaceTag; label: string }[] = [
+  { value: "food", label: "Food" },
+  { value: "sightseeing", label: "Sightseeing" },
+  { value: "shopping", label: "Shopping" },
+  { value: "nature", label: "Nature" },
+  { value: "culture", label: "Culture" },
+  { value: "nightlife", label: "Nightlife" },
+  { value: "kids", label: "Kids" },
+  { value: "transport", label: "Transport" },
+  { value: "other", label: "Other" },
 ];
 
 export type ReqState = "missing" | "pending" | "done";
@@ -67,13 +67,19 @@ export interface Hotel {
   updatedAt: number;
 }
 
+/** Journeys (flights / trains) can live inside a trip or stand alone. Standalone = tripId "" (kept as a string so the Dexie index still works). */
+export const NO_TRIP = "";
+
 export interface Flight {
   id: string;
-  tripId: string;
+  tripId: string; // NO_TRIP for ad-hoc flights
   airline: string;
+  airlineCode?: string; // IATA prefix, e.g. SQ — drives the logo
   flightNumber: string; // e.g. SQ423
   from: string; // IATA
   to: string;
+  fromName?: string; // airport / city label resolved from the flight number
+  toName?: string;
   departAt: string; // ISO local datetime "2025-11-03T09:40"
   arriveAt: string;
   terminal?: string;
@@ -83,6 +89,29 @@ export interface Flight {
   passengerIds: string[];
   status: ReqState;
   attachmentIds: string[];
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface Train {
+  id: string;
+  tripId: string; // NO_TRIP for ad-hoc journeys
+  operator?: string; // e.g. Indian Railways, Deutsche Bahn, JR East
+  trainNumber: string; // e.g. 12951, ICE 599, Nozomi 23
+  trainName?: string; // e.g. Mumbai Rajdhani
+  from: string; // station name / code
+  to: string;
+  departAt: string; // ISO local datetime
+  arriveAt?: string;
+  coach?: string;
+  seats?: string;
+  travelClass?: string; // 3A / 2nd / Green car…
+  pnr?: string;
+  platform?: string;
+  passengerIds: string[];
+  status: ReqState;
+  attachmentIds: string[];
+  notes?: string;
   createdAt: number;
   updatedAt: number;
 }
@@ -105,13 +134,13 @@ export interface ItineraryDay {
 }
 
 export type ExpenseCategory = "food" | "transport" | "stay" | "tickets" | "shopping" | "other";
-export const EXPENSE_CATEGORIES: { value: ExpenseCategory; label: string; emoji: string }[] = [
-  { value: "food", label: "Food", emoji: "🍽️" },
-  { value: "transport", label: "Transport", emoji: "🚕" },
-  { value: "stay", label: "Stay", emoji: "🏨" },
-  { value: "tickets", label: "Tickets", emoji: "🎟️" },
-  { value: "shopping", label: "Shopping", emoji: "🛍️" },
-  { value: "other", label: "Other", emoji: "💳" },
+export const EXPENSE_CATEGORIES: { value: ExpenseCategory; label: string }[] = [
+  { value: "food", label: "Food" },
+  { value: "transport", label: "Transport" },
+  { value: "stay", label: "Stay" },
+  { value: "tickets", label: "Tickets" },
+  { value: "shopping", label: "Shopping" },
+  { value: "other", label: "Other" },
 ];
 
 export interface Expense {

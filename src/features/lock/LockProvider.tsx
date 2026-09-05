@@ -79,7 +79,8 @@ export function LockProvider({ children }: { children: ReactNode }) {
       if (document.visibilityState === "hidden") hiddenAt.current = Date.now();
       else if (hiddenAt.current && state === "unlocked") {
         const mins = config?.autoLockMinutes ?? 5;
-        if (Date.now() - hiddenAt.current >= mins * 60_000) lock();
+        // -1 = never auto-lock
+        if (mins >= 0 && Date.now() - hiddenAt.current >= mins * 60_000) lock();
         hiddenAt.current = null;
       }
     };

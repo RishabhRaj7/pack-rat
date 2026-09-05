@@ -35,7 +35,7 @@ export async function seedSingapore(force = false) {
     startDate: S,
     endDate: E,
     currency: "SGD",
-    coverEmoji: "🦁",
+    coverEmoji: "",
     travellerIds: [],
     notes: "Visa-free for most passports (check ICA). Fill in the SG Arrival Card online within 3 days of arrival. EZ-Link / contactless cards work on MRT & buses. Tap water is safe. Chewing gum is banned.",
     emergency: {
@@ -85,7 +85,7 @@ export async function seedSingapore(force = false) {
     const prep = [
       { buy: "Kaya jam & Ya Kun coffee powder from a supermarket; EZ-Link card at any MRT station", avoid: "Taxis 5–8pm (peak surcharge) — take the MRT", general: "Hawker centres: chope a table with a tissue pack, order, then sit." },
       { buy: "Bak kwa (Bee Cheng Hiang) — vacuum packed for the flight", avoid: "Supertree OCBC Skyway in the rain — slippery, closes in lightning", general: "Sunset at SkyPark ≈ 7pm; light show at Gardens 7:45pm — walkable in 10 min." },
-      { buy: "Minion popcorn bucket if the kids insist 🙂", avoid: "Lockers near the entrance fill up — use the ones inside Sci-Fi City", general: "Free water refill stations near restrooms. Ponchos for the Jurassic Park ride." },
+      { buy: "Minion popcorn bucket if the kids insist", avoid: "Lockers near the entrance fill up — use the ones inside Sci-Fi City", general: "Free water refill stations near restrooms. Ponchos for the Jurassic Park ride." },
       { buy: "TWG tea tins at ION Orchard; Charles & Keith is cheaper than back home", avoid: "Orchard Rd on a weekend afternoon if you dislike crowds", general: "Night Safari: last tram 11:15pm. Wear dark clothes, no flash photography." },
       { buy: "", avoid: "", general: "Free day — Sentosa beaches, Haw Par Villa, or the ArtScience Museum depending on weather." },
       { buy: "Duty-free: Tiger Balm, pandan cake from Bengawan Solo (T2/T3)", avoid: "Leaving the GST refund kiosk for last — do it before check-in", general: "Check-out 12:00, leave bags at concierge, Jewel by 2pm, check-in 3h before." },

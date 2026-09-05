@@ -19,6 +19,7 @@ export function labelFor(table: SyncedTable, rec?: Record<string, unknown> | nul
     case "places": return `Place · ${pick("name") ?? "unnamed"}`;
     case "hotels": return `Hotel · ${pick("name") ?? "unnamed"}`;
     case "flights": return `Flight · ${pick("flightNumber", "airline") ?? "unnamed"}`;
+    case "trains": return `Train · ${pick("trainNumber", "trainName") ?? "unnamed"}`;
     case "itineraryDays": return `Day · ${pick("date") ?? ""}`.trim();
     case "expenses": return `Expense · ${pick("note", "category", "title") ?? ""}`.replace(/ · $/, "");
     case "loyalty": return `Loyalty · ${pick("program", "name") ?? "card"}`;
@@ -70,18 +71,20 @@ export async function removeAttachment(id?: string) {
 
 /** Cascade delete everything that belongs to a trip. */
 export async function deleteTripCascade(tripId: string) {
-  const [places, hotels, flights, days, expenses] = await Promise.all([
+  const [places, hotels, flights, trains, days, expenses] = await Promise.all([
     db.places.where("tripId").equals(tripId).toArray(),
     db.hotels.where("tripId").equals(tripId).toArray(),
     db.flights.where("tripId").equals(tripId).toArray(),
+    db.trains.where("tripId").equals(tripId).toArray(),
     db.itineraryDays.where("tripId").equals(tripId).toArray(),
     db.expenses.where("tripId").equals(tripId).toArray(),
   ]);
-  const attachmentIds = [...places, ...hotels, ...flights].flatMap((x) => x.attachmentIds ?? []);
+  const attachmentIds = [...places, ...hotels, ...flights, ...trains].flatMap((x) => x.attachmentIds ?? []);
   await Promise.all([
     ...places.map((p) => remove("places", p.id)),
     ...hotels.map((h) => remove("hotels", h.id)),
     ...flights.map((f) => remove("flights", f.id)),
+    ...trains.map((t) => remove("trains", t.id)),
     ...days.map((d) => remove("itineraryDays", d.id)),
     ...expenses.map((e) => remove("expenses", e.id)),
     ...attachmentIds.map((a) => remove("attachments", a)),
