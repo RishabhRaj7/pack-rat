@@ -3,7 +3,6 @@ import { Link } from "react-router-dom";
 import { Sun, Moon, MonitorSmartphone, KeyRound, Lock, Download, Upload, Trash2, Cloud, CloudOff, Users, Plus, Pencil, ChevronRight, Sparkles, Smartphone } from "lucide-react";
 import { Card, Button, Segmented, Toggle, Select, Avatar, Modal, Input, Field, Badge } from "@/components/ui";
 import { useTheme } from "@/lib/theme";
-import { useTrainsEnabled } from "@/lib/prefs";
 import { useLock } from "@/features/lock/LockProvider";
 import { useMembers } from "@/features/family/hooks";
 import { MemberForm } from "@/features/family/MemberForm";
@@ -29,7 +28,6 @@ function Row({ label, hint, children }: { label: string; hint?: string; children
 
 export function SettingsPage() {
   const { mode, setMode } = useTheme();
-  const [trainsOn, setTrainsOn] = useTrainsEnabled();
   const lock = useLock();
   const members = useMembers() ?? [];
   const sync = useSyncStatus();
@@ -59,9 +57,6 @@ export function SettingsPage() {
       <Section title="Appearance" icon={<Sun size={18} />}>
         <Row label="Theme" hint="Tonal Material You palette in light; true-black AMOLED in dark.">
           <Segmented value={mode} onChange={setMode} options={[{ value: "light", label: <span className="flex items-center gap-1"><Sun size={13} /> Light</span> }, { value: "dark", label: <span className="flex items-center gap-1"><Moon size={13} /> Dark</span> }, { value: "system", label: <span className="flex items-center gap-1"><MonitorSmartphone size={13} /> Auto</span> }]} />
-        </Row>
-        <Row label="Train journeys" hint="Show the Trains tab and the Trains section inside trips (always listed last).">
-          <Toggle checked={trainsOn} onChange={(v) => void setTrainsOn(v)} />
         </Row>
         {installEvt && <Row label="Install app" hint="Add Pack Rat to your home screen for offline access."><Button size="sm" variant="secondary" onClick={() => installEvt.prompt()}><Smartphone size={14} /> Install</Button></Row>}
       </Section>

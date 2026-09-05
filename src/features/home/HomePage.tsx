@@ -1,19 +1,19 @@
 import { Link } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
-import { Plane, TrainFront, Hotel, Wallet, ArrowRight, Users, FolderLock, WifiOff, ShieldAlert, ArrowLeftRight, MapPin, Plus, CalendarDays } from "lucide-react";
+import { Plane, TrainFront, Hotel, ArrowRight, WifiOff, ShieldAlert, MapPin, Plus, CalendarDays } from "lucide-react";
 import { db } from "@/lib/db";
 import { Card, Badge, Avatar, StatusDot, Button } from "@/components/ui";
 import { DOCUMENT_ICONS } from "@/components/icons";
 import { useMemberMap } from "@/features/family/hooks";
-import { useTrips, useAllFlights, useAllTrains, useAllHotels, useAllExpenses } from "@/features/trips/hooks";
+import { useTrips, useAllFlights, useAllTrains, useAllHotels } from "@/features/trips/hooks";
 import { tripStatus, placeStatus, type Trip } from "@/features/trips/types";
 import { expiryStatus, DOCUMENT_TYPES } from "@/features/documents/types";
 import { useSyncStatus } from "@/lib/sync";
-import { useHomeCurrency, useRates, useFocusMembers, useTrainsEnabled, matchesFocus } from "@/lib/prefs";
+import { useFocusMembers, useTrainsEnabled, matchesFocus } from "@/lib/prefs";
 import { FocusPicker, useFocusLabel } from "@/features/family/FocusPicker";
-import { convertWith, parseFlightNumber } from "@/lib/services";
+import { parseFlightNumber } from "@/lib/services";
 import { AirlineLogo } from "@/features/journeys/FlightCard";
-import { fmtDate, fmtTime, daysBetween, today, fmtMoney, cn } from "@/lib/utils";
+import { fmtDate, fmtTime, daysBetween, today, cn } from "@/lib/utils";
 
 function SectionTitle({ title, to, action }: { title: string; to?: string; action?: string }) {
   return (
@@ -21,17 +21,6 @@ function SectionTitle({ title, to, action }: { title: string; to?: string; actio
       <h2 className="text-sm font-semibold text-muted">{title}</h2>
       {to && <Link to={to} className="text-xs font-medium text-accent">{action ?? "View all"}</Link>}
     </div>
-  );
-}
-
-function StatTile({ to, icon: I, value, label }: { to: string; icon: typeof Users; value: string | number; label: string }) {
-  return (
-    <Link to={to} className="block">
-      <Card className="flex items-center gap-3 p-3.5 transition hover:bg-surface-2">
-        <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-accent-soft text-accent-strong"><I size={18} /></div>
-        <div><p className="text-lg font-semibold leading-tight">{value}</p><p className="text-xs text-muted">{label}</p></div>
-      </Card>
-    </Link>
   );
 }
 
@@ -73,11 +62,9 @@ export function HomePage() {
   const allFlights = useAllFlights();
   const allTrains = useAllTrains();
   const allHotels = useAllHotels();
-  const allExpenses = useAllExpenses();
   const allDocs = useLiveQuery(() => db.documents.toArray(), []) ?? [];
   const members = useMemberMap();
   const sync = useSyncStatus();
-  const [home] = useHomeCurrency();
   const [focus] = useFocusMembers();
   const [trainsOn] = useTrainsEnabled();
   const focusLabel = useFocusLabel();
@@ -89,14 +76,11 @@ export function HomePage() {
   const flights = allFlights.filter((f) => matchesFocus(focus, f.passengerIds) || (focus.length > 0 && !f.passengerIds.length && f.tripId && tripIds.has(f.tripId)));
   const trains = trainsOn ? allTrains.filter((x) => matchesFocus(focus, x.passengerIds) || (focus.length > 0 && !x.passengerIds.length && x.tripId && tripIds.has(x.tripId))) : [];
   const hotels = allHotels.filter((h) => focus.length === 0 || tripIds.has(h.tripId));
-  const expenses = allExpenses.filter((e) => focus.length === 0 || tripIds.has(e.tripId) || (e.paidById ? focus.includes(e.paidById) : false));
   const docs = allDocs.filter((d) => focus.length === 0 || focus.includes(d.memberId));
 
   const active = trips.filter((t) => tripStatus(t) !== "completed").sort((a, b) => a.startDate.localeCompare(b.startDate));
   const next = active[0];
   const tripMap = new Map(trips.map((t) => [t.id, t]));
-  const { table } = useRates(home);
-
   // Upcoming journeys (flights + trains) across trips and ad-hoc, next 5.
   const journeys = [
     ...flights.map((f) => ({ kind: "flight" as const, id: f.id, at: f.departAt, title: `${f.from || "?"} → ${f.to || "?"}`, sub: `${f.airline || f.airlineCode || ""} ${f.flightNumber}`.trim(), code: f.airlineCode ?? parseFlightNumber(f.flightNumber)?.code, tripId: f.tripId })),
@@ -104,12 +88,6 @@ export function HomePage() {
   ].filter((j) => j.at.slice(0, 10) >= now).sort((a, b) => a.at.localeCompare(b.at)).slice(0, 5);
 
   const upcomingStays = hotels.filter((h) => h.checkOut >= now).sort((a, b) => a.checkIn.localeCompare(b.checkIn)).slice(0, 3);
-
-  // Spend this month + for the active trip, in home currency.
-  const month = now.slice(0, 7);
-  const sumHome = (list: typeof expenses) => list.reduce((s, e) => s + (convertWith(table, e.amount, e.currency, home) ?? 0), 0);
-  const monthSpend = sumHome(expenses.filter((e) => e.date.startsWith(month)));
-  const nextTripSpend = next ? sumHome(expenses.filter((e) => e.tripId === next.id)) : 0;
 
   const reminders = docs.map((d) => ({ d, ...expiryStatus(d.expiryDate) })).filter((x) => x.status !== "ok" && x.status !== "none").sort((a, b) => (a.days ?? 0) - (b.days ?? 0));
   const unconfirmed = [...flights, ...trains, ...hotels].filter((x) => x.status !== "done" && ("departAt" in x ? x.departAt.slice(0, 10) >= now : x.checkOut >= now)).length;
@@ -169,33 +147,6 @@ export function HomePage() {
         </section>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2">
-        <Card className="p-4">
-          <div className="flex items-center justify-between"><p className="flex items-center gap-1.5 text-xs font-medium text-muted"><Wallet size={13} /> Spending</p><Link to={next ? `/trips/${next.id}?tab=expenses` : "/trips"} className="text-xs font-medium text-accent">Details</Link></div>
-          <div className="mt-2 grid grid-cols-2 gap-3">
-            <div><p className="text-xl font-semibold tracking-tight">{fmtMoney(monthSpend, home)}</p><p className="text-xs text-muted">This month</p></div>
-            {next && <div><p className="text-xl font-semibold tracking-tight">{fmtMoney(nextTripSpend, home)}</p><p className="truncate text-xs text-muted">{next.title}</p></div>}
-          </div>
-        </Card>
-        <Link to={`/convert?from=${next?.currency ?? "USD"}&to=${home}`} className="block">
-          <Card className="flex h-full items-center gap-3 p-4 transition hover:bg-surface-2">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-accent-soft text-accent-strong"><ArrowLeftRight size={20} /></div>
-            <div className="min-w-0 flex-1">
-              <p className="font-semibold">Currency converter</p>
-              <p className="truncate text-xs text-muted">{next && next.currency !== home ? (() => { const r = convertWith(table, 1, next.currency, home); return r ? `1 ${next.currency} = ${r.toFixed(r < 0.1 ? 4 : 2)} ${home}` : `${next.currency} → ${home}`; })() : `Home currency ${home}`}</p>
-            </div>
-            <ArrowRight size={16} className="text-muted" />
-          </Card>
-        </Link>
-      </div>
-
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <StatTile to="/trips" icon={Plane} value={active.length} label={`Active trip${active.length === 1 ? "" : "s"}`} />
-        <StatTile to="/trips?view=flights" icon={trainsOn ? TrainFront : Plane} value={flights.length + trains.length} label="Journeys" />
-        <StatTile to="/family" icon={Users} value={members.size} label="Family" />
-        <StatTile to="/vault" icon={FolderLock} value={docs.length} label="Documents" />
-      </div>
-
       {reminders.length > 0 && (
         <section>
           <SectionTitle title="Expiring documents" to="/vault" action="Open vault" />
@@ -211,12 +162,6 @@ export function HomePage() {
         </section>
       )}
 
-      {members.size > 0 && (
-        <section>
-          <SectionTitle title="Travellers" to="/family" action="Manage" />
-          <div className="flex flex-wrap gap-2">{[...members.values()].map((m) => <Link key={m.id} to={`/family/${m.id}`} className="flex items-center gap-2 rounded-full bg-surface py-1 pl-1 pr-3 text-sm font-medium shadow-card hover:bg-surface-2"><Avatar name={m.name} size={26} /> {m.name}</Link>)}</div>
-        </section>
-      )}
     </div>
   );
 }
