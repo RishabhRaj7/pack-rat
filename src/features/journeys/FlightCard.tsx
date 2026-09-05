@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { Plane, Pencil, Trash2, RefreshCw, ExternalLink, ChevronDown, Search, Loader2 } from "lucide-react";
+import { Plane, Pencil, Trash2, RefreshCw, ExternalLink, ChevronDown, Search, Loader2, History as HistoryIcon } from "lucide-react";
 import { Modal, Button, Field, Input, Card, Badge, StatusBadge, Avatar } from "@/components/ui";
 import { AttachmentList, AttachmentChip } from "@/components/attachments";
 import { put, newId, remove, removeAttachment } from "@/lib/repo";
 import { fmtDate, fmtTime, cn, today } from "@/lib/utils";
-import { fetchFlightStatus, flightTrackerUrl, lookupFlightRoute, airlineLogoUrl, parseFlightNumber, type FlightLive } from "@/lib/services";
+import { fetchFlightStatus, fetchFlightHistory, flightTrackerUrl, lookupFlightRoute, airlineLogoUrl, parseFlightNumber, minutesDiff, hasFlightDataKey, type FlightLive, type FlightHistory } from "@/lib/services";
 import { useMemberMap } from "@/features/family/hooks";
 import { useTrip } from "@/features/trips/hooks";
 import { NO_TRIP, type Flight, type Trip } from "@/features/trips/types";
@@ -122,6 +122,8 @@ export function FlightForm({ open, onClose, trip, flight, tripId }: { open: bool
           <Field label="Arrival time"><Input type="time" value={arr.time} onChange={(e) => set("arriveAt", joinDT(arr.date || dep.date, e.target.value))} /></Field>
         </div>
 
+        <Field label="Who's flying" hint="Tag one or more family members — used to filter Home by person."><PassengerPicker value={form.passengerIds ?? []} onChange={(ids) => set("passengerIds", ids)} /></Field>
+
         <button type="button" onClick={() => setMore((m) => !m)} className="flex w-full items-center justify-between rounded-xl px-1 py-1 text-sm font-medium text-accent">
           <span>{more ? "Hide" : "More"} details</span> <ChevronDown size={16} className={cn("transition", more && "rotate-180")} />
         </button>
@@ -137,7 +139,6 @@ export function FlightForm({ open, onClose, trip, flight, tripId }: { open: bool
               <Field label="Booking status"><BookingStatusSelect value={form.status ?? "missing"} onChange={(v) => set("status", v)} /></Field>
             </div>
             {!trip && <Field label="Trip"><TripPicker value={form.tripId ?? NO_TRIP} onChange={(v) => set("tripId", v)} /></Field>}
-            <Field label="Passengers"><PassengerPicker value={form.passengerIds ?? []} onChange={(ids) => set("passengerIds", ids)} /></Field>
             <Field label="E-tickets / boarding passes"><AttachmentList ids={form.attachmentIds ?? []} onChange={(ids) => set("attachmentIds", ids)} label="Attach e-ticket" /></Field>
           </div>
         )}
@@ -157,13 +158,50 @@ const LIVE_META: Record<FlightLive["status"], { label: string; tone: "neutral" |
   unknown: { label: "Unknown", tone: "neutral" },
 };
 
-function TimeBlock({ manual, scheduled, actual, align = "left" }: { manual: string; scheduled?: string; actual?: string; align?: "left" | "right" }) {
-  const shown = actual ?? scheduled ?? manual;
-  const changed = actual && scheduled && actual.slice(0, 16) !== scheduled.slice(0, 16);
+/** Colour for a deviation from schedule: early → green, a little late → orange, very late → red. */
+const deltaTone = (mins: number) => (mins < 0 ? "text-ok" : mins >= 30 ? "text-danger" : "text-warn");
+const fmtDelta = (mins: number) => (mins === 0 ? "on time" : `${mins < 0 ? "−" : "+"}${Math.abs(mins) >= 60 ? `${Math.floor(Math.abs(mins) / 60)}h ${Math.abs(mins) % 60 ? `${Math.abs(mins) % 60}m` : ""}`.trim() : `${Math.abs(mins)}m`}`);
+
+/**
+ * Scheduled vs. actual time. When the actual (or airline-revised) time differs from the schedule the
+ * original is struck through and the new time is shown in green (early) or orange / red (late).
+ */
+function TimeBlock({ manual, scheduled, actual, isEstimate, align = "left" }: { manual: string; scheduled?: string; actual?: string; isEstimate?: boolean; align?: "left" | "right" }) {
+  const sched = scheduled ?? manual;
+  const delta = actual ? (minutesDiff(sched, actual) ?? 0) : 0;
+  const changed = !!actual && delta !== 0;
+  const shown = changed ? actual! : sched;
   return (
     <div className={cn(align === "right" && "text-right")}>
-      <p className={cn("text-sm font-semibold", changed && "text-warn")}>{fmtTime(shown)}</p>
-      <p className="text-[11px] text-muted">{fmtDate(shown.slice(0, 10), "EEE d MMM")}</p>
+      <p className={cn("flex items-baseline gap-1.5 text-sm font-semibold", align === "right" && "justify-end")}>
+        {changed && <s className="text-xs font-normal text-muted decoration-muted/70">{fmtTime(sched)}</s>}
+        <span className={cn(changed && deltaTone(delta))}>{fmtTime(shown)}</span>
+      </p>
+      <p className="text-[11px] text-muted">
+        {fmtDate(shown.slice(0, 10), "EEE d MMM")}
+        {changed && <span className={cn("ml-1 font-medium", deltaTone(delta))}>{isEstimate ? "est. " : ""}{fmtDelta(delta)}</span>}
+      </p>
+    </div>
+  );
+}
+
+/** Average departure / arrival over the last 7 days (needs the AeroDataBox key). */
+function HistoryStrip({ flight, history, loading }: { flight: Flight; history: FlightHistory | null; loading: boolean }) {
+  if (!hasFlightDataKey()) return <p className="mt-2 px-1 text-[11px] text-muted">Add <span className="font-mono">VITE_AERODATABOX_KEY</span> for live times and 7-day averages.</p>;
+  if (loading && !history) return <p className="mt-2 flex items-center gap-1.5 px-1 text-[11px] text-muted"><Loader2 size={11} className="animate-spin" /> Checking the last 7 days…</p>;
+  if (!history || !history.samples.length) return <p className="mt-2 px-1 text-[11px] text-muted">No data for {flight.flightNumber} over the last 7 days.</p>;
+  const Cell = ({ label, time, delay }: { label: string; time?: string; delay?: number }) => (
+    <div className="min-w-0">
+      <p className="text-[10px] font-medium uppercase tracking-wide text-muted">{label}</p>
+      <p className="text-sm font-semibold tabular-nums">{time ?? "—"}{delay != null && <span className={cn("ml-1 text-[11px] font-medium", delay === 0 ? "text-muted" : deltaTone(delay))}>{fmtDelta(delay)}</span>}</p>
+    </div>
+  );
+  return (
+    <div className="mt-2 flex items-center gap-4 rounded-2xl border border-line/70 px-3 py-2">
+      <div className="flex shrink-0 flex-col items-center text-muted" title={`${fmtDate(history.from, "d MMM")} – ${fmtDate(history.to, "d MMM")}`}><HistoryIcon size={14} /><span className="text-[9px] font-medium">7 days</span></div>
+      <Cell label="Avg departure" time={history.avgDepart} delay={history.avgDepartDelay} />
+      <Cell label="Avg arrival" time={history.avgArrive} delay={history.avgArriveDelay} />
+      {history.onTimePct != null && <div className="ml-auto text-right"><p className="text-[10px] font-medium uppercase tracking-wide text-muted">On time</p><p className={cn("text-sm font-semibold", history.onTimePct >= 80 ? "text-ok" : history.onTimePct >= 50 ? "text-warn" : "text-danger")}>{history.onTimePct}%</p></div>}
     </div>
   );
 }
@@ -171,21 +209,28 @@ function TimeBlock({ manual, scheduled, actual, align = "left" }: { manual: stri
 export function FlightCard({ flight, showTrip, compact }: { flight: Flight; showTrip?: boolean; compact?: boolean }) {
   const [edit, setEdit] = useState(false);
   const [live, setLive] = useState<FlightLive | null>(null);
+  const [history, setHistory] = useState<FlightHistory | null>(null);
   const [loading, setLoading] = useState(false);
+  const [histLoading, setHistLoading] = useState(false);
   const members = useMemberMap();
   const trip = useTrip(showTrip && flight.tripId ? flight.tripId : undefined);
   const past = flight.departAt.slice(0, 10) < today();
-  const refresh = async () => {
+  const refresh = async (force = false) => {
     setLoading(true);
     setLive(await fetchFlightStatus(flight));
     setLoading(false);
+    if (hasFlightDataKey()) {
+      setHistLoading(true);
+      setHistory(await fetchFlightHistory(flight.flightNumber, force));
+      setHistLoading(false);
+    }
   };
   useEffect(() => {
     void refresh();
-    const t = setInterval(refresh, 5 * 60_000);
+    const t = setInterval(() => void refresh(), 5 * 60_000);
     return () => clearInterval(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [flight.id, flight.departAt]);
+  }, [flight.id, flight.departAt, flight.flightNumber]);
 
   return (
     <Card className={cn("p-4", past && "opacity-75")}>
@@ -198,7 +243,7 @@ export function FlightCard({ flight, showTrip, compact }: { flight: Flight; show
           </div>
         </div>
         <div className="flex shrink-0 items-center">
-          <IconBtn onClick={refresh} title="Refresh status" className={cn(loading && "animate-spin")}><RefreshCw size={15} /></IconBtn>
+          <IconBtn onClick={() => void refresh(true)} title="Refresh status" className={cn(loading && "animate-spin")}><RefreshCw size={15} /></IconBtn>
           <IconBtn href={flightTrackerUrl(flight.flightNumber)} title="Track on Flightradar24"><ExternalLink size={15} /></IconBtn>
           <IconBtn onClick={() => setEdit(true)} title="Edit"><Pencil size={15} /></IconBtn>
           <IconBtn danger title="Remove" onClick={async () => { if (confirm("Remove flight?")) { await Promise.all(flight.attachmentIds.map(removeAttachment)); await remove("flights", flight.id); } }}><Trash2 size={15} /></IconBtn>
@@ -209,7 +254,7 @@ export function FlightCard({ flight, showTrip, compact }: { flight: Flight; show
         <div className="min-w-0 flex-1">
           <p className="text-2xl font-semibold tracking-tight">{flight.from || "—"}</p>
           {flight.fromName && <p className="truncate text-[11px] text-muted">{flight.fromName}</p>}
-          <TimeBlock manual={flight.departAt} scheduled={live?.scheduledDepart} actual={live?.actualDepart} />
+          <TimeBlock manual={flight.departAt} scheduled={live?.scheduledDepart} actual={live?.actualDepart} isEstimate={live?.departIsEstimate} />
           {live?.gate && <p className="text-xs font-medium text-warn">Gate {live.gate}</p>}
         </div>
         <div className="flex flex-col items-center text-muted">
@@ -218,9 +263,11 @@ export function FlightCard({ flight, showTrip, compact }: { flight: Flight; show
         <div className="min-w-0 flex-1 text-right">
           <p className="text-2xl font-semibold tracking-tight">{flight.to || "—"}</p>
           {flight.toName && <p className="truncate text-[11px] text-muted">{flight.toName}</p>}
-          <TimeBlock manual={flight.arriveAt || flight.departAt} scheduled={live?.scheduledArrive} actual={live?.actualArrive} align="right" />
+          <TimeBlock manual={flight.arriveAt || flight.departAt} scheduled={live?.scheduledArrive} actual={live?.actualArrive} isEstimate={live?.arriveIsEstimate} align="right" />
         </div>
       </div>
+
+      {!compact && <HistoryStrip flight={flight} history={history} loading={histLoading} />}
 
       <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted">
         <StatusBadge status={reqToReady(flight.status)} />

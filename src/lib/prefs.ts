@@ -40,6 +40,28 @@ export function useRates(base?: string) {
   return { table, loading, refresh: () => load(true) };
 }
 
+/** Whether the Trains section / tab is shown at all (device preference, defaults to on). */
+export function useTrainsEnabled() {
+  const row = useLiveQuery(() => db.settings.get("trainsEnabled"), []);
+  const enabled = row ? row.value !== false : true;
+  const set = async (v: boolean) => setSetting("trainsEnabled", v);
+  return [enabled, set] as const;
+}
+
+/**
+ * "Viewing as" filter: which family members' trips / journeys / documents to show.
+ * Empty array = everyone. Stored per device so each person can keep their own focus.
+ */
+export function useFocusMembers() {
+  const row = useLiveQuery(() => db.settings.get("focusMembers"), []);
+  const ids = (row?.value as string[] | undefined) ?? [];
+  const set = async (next: string[]) => setSetting("focusMembers", next);
+  return [ids, set] as const;
+}
+
+/** True when the record concerns any of the focused members (or when no focus is set). */
+export const matchesFocus = (focus: string[], memberIds: string[] | undefined) => focus.length === 0 || (memberIds ?? []).some((id) => focus.includes(id));
+
 export async function getRecentPairs(): Promise<[string, string][]> {
   return getSetting<[string, string][]>("fx:recentPairs", []);
 }

@@ -48,15 +48,15 @@
   color-scheme: light;
 }
 
-/* ---------- Dark scheme (M3 tonal — not pure black) ---------- */
+/* ---------- Dark scheme (AMOLED — true black background, near-black surfaces) ---------- */
 .dark {
-  --bg: #0e1514;
-  --surface: #1a2121;
-  --surface-2: #232a2a;
-  --surface-3: #2d3434;
-  --line: #3a4443;
-  --fg: #dde4e3;
-  --muted: #a6b1b0;
+  --bg: #000000;
+  --surface: #0b0f0f;
+  --surface-2: #141a1a;
+  --surface-3: #1d2424;
+  --line: #262e2e;
+  --fg: #e6ecec;
+  --muted: #9aa6a5;
   --accent: #4cdada;
   --accent-strong: #8ff4f3;
   --accent-soft: #2e4747;
@@ -69,7 +69,7 @@
   --warn-soft: #3b3113;
   --danger: #ffb4ab;
   --danger-soft: #4b1c18;
-  --shadow: 0 0 0 1px rgba(255, 255, 255, 0.03);
+  --shadow: 0 0 0 1px rgba(255, 255, 255, 0.06);
   color-scheme: dark;
 }
 

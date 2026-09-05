@@ -61,6 +61,7 @@ export function TrainForm({ open, onClose, trip, train, tripId }: { open: boolea
           <Field label="Departure time"><Input type="time" value={dep.time} onChange={(e) => set("departAt", joinDT(dep.date, e.target.value))} /></Field>
           <Field label="Arrival time"><Input type="time" value={arr.time} onChange={(e) => set("arriveAt", joinDT(arr.date || dep.date, e.target.value))} /></Field>
         </div>
+        <Field label="Who's travelling" hint="Tag one or more family members — used to filter Home by person."><PassengerPicker value={form.passengerIds ?? []} onChange={(ids) => set("passengerIds", ids)} /></Field>
         <button type="button" onClick={() => setMore((m) => !m)} className="flex w-full items-center justify-between rounded-xl px-1 py-1 text-sm font-medium text-accent">
           <span>{more ? "Hide" : "More"} details</span> <ChevronDown size={16} className={cn("transition", more && "rotate-180")} />
         </button>
@@ -77,7 +78,6 @@ export function TrainForm({ open, onClose, trip, train, tripId }: { open: boolea
               <Field label="Booking status"><BookingStatusSelect value={form.status ?? "missing"} onChange={(v) => set("status", v)} /></Field>
             </div>
             {!trip && <Field label="Trip"><TripPicker value={form.tripId ?? NO_TRIP} onChange={(v) => set("tripId", v)} /></Field>}
-            <Field label="Passengers"><PassengerPicker value={form.passengerIds ?? []} onChange={(ids) => set("passengerIds", ids)} /></Field>
             <Field label="Tickets"><AttachmentList ids={form.attachmentIds ?? []} onChange={(ids) => set("attachmentIds", ids)} label="Attach ticket" /></Field>
             <Field label="Notes"><Textarea value={form.notes ?? ""} onChange={(e) => set("notes", e.target.value)} placeholder="Platform usually announced 20 min before; food not included…" /></Field>
           </div>

@@ -5,6 +5,7 @@ import { AttachmentList, AttachmentChip } from "@/components/attachments";
 import { put, newId, remove, removeAttachment } from "@/lib/repo";
 import { mapsUrl, fmtDate, daysBetween } from "@/lib/utils";
 import { useHotels, useFlights, useTrains } from "./hooks";
+import { useTrainsEnabled } from "@/lib/prefs";
 import type { Hotel, Trip } from "./types";
 import { BookingStatusSelect, CopyBtn, reqToReady, IconBtn } from "@/features/journeys/common";
 import { FlightCard, FlightForm } from "@/features/journeys/FlightCard";
@@ -81,6 +82,7 @@ export function StayTab({ trip }: { trip: Trip }) {
   const hotels = useHotels(trip.id);
   const flights = useFlights(trip.id);
   const trains = useTrains(trip.id);
+  const [trainsOn] = useTrainsEnabled();
   const [addHotel, setAddHotel] = useState(false);
   const [addFlight, setAddFlight] = useState(false);
   const [addTrain, setAddTrain] = useState(false);
@@ -91,13 +93,16 @@ export function StayTab({ trip }: { trip: Trip }) {
         {flights.length === 0 ? <EmptyState icon={<Plane />} title="No flights yet" hint="Just the flight number and date — airline, logo and route are looked up for you." action={<Button size="sm" onClick={() => setAddFlight(true)}><Plus size={14} /> Add flight</Button>} /> : <div className="grid gap-3 lg:grid-cols-2">{flights.map((f) => <FlightCard key={f.id} flight={f} />)}</div>}
       </section>
       <section>
-        <SectionHead icon={TrainFront} title="Trains" count={trains.length} onAdd={() => setAddTrain(true)} addLabel="Train" />
-        {trains.length === 0 ? <EmptyState icon={<TrainFront />} title="No train journeys" hint="Rail legs, intercity trains, airport express — keep PNRs and seats here." /> : <div className="grid gap-3 lg:grid-cols-2">{trains.map((t) => <TrainCard key={t.id} train={t} />)}</div>}
-      </section>
-      <section>
         <SectionHead icon={HotelIcon} title="Stay" count={hotels.length} onAdd={() => setAddHotel(true)} addLabel="Stay" />
         {hotels.length === 0 ? <EmptyState icon={<HotelIcon />} title="No hotel yet" hint="Add your reservation — check-in/out, confirmation number, address." /> : <div className="space-y-3">{hotels.map((h) => <HotelCard key={h.id} hotel={h} trip={trip} />)}</div>}
       </section>
+      {/* Trains: optional (toggle on the Trips page) and always the last section. */}
+      {trainsOn && (
+        <section>
+          <SectionHead icon={TrainFront} title="Trains" count={trains.length} onAdd={() => setAddTrain(true)} addLabel="Train" />
+          {trains.length === 0 ? <EmptyState icon={<TrainFront />} title="No train journeys" hint="Rail legs, intercity trains, airport express — keep PNRs and seats here." /> : <div className="grid gap-3 lg:grid-cols-2">{trains.map((t) => <TrainCard key={t.id} train={t} />)}</div>}
+        </section>
+      )}
       {addHotel && <HotelForm open onClose={() => setAddHotel(false)} trip={trip} />}
       {addFlight && <FlightForm open onClose={() => setAddFlight(false)} trip={trip} />}
       {addTrain && <TrainForm open onClose={() => setAddTrain(false)} trip={trip} />}

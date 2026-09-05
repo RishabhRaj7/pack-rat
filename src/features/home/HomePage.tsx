@@ -9,7 +9,8 @@ import { useTrips, useAllFlights, useAllTrains, useAllHotels, useAllExpenses } f
 import { tripStatus, placeStatus, type Trip } from "@/features/trips/types";
 import { expiryStatus, DOCUMENT_TYPES } from "@/features/documents/types";
 import { useSyncStatus } from "@/lib/sync";
-import { useHomeCurrency, useRates } from "@/lib/prefs";
+import { useHomeCurrency, useRates, useFocusMembers, useTrainsEnabled, matchesFocus } from "@/lib/prefs";
+import { FocusPicker, useFocusLabel } from "@/features/family/FocusPicker";
 import { convertWith, parseFlightNumber } from "@/lib/services";
 import { AirlineLogo } from "@/features/journeys/FlightCard";
 import { fmtDate, fmtTime, daysBetween, today, fmtMoney, cn } from "@/lib/utils";
@@ -68,16 +69,28 @@ function NextTripHero({ trip }: { trip: Trip }) {
 }
 
 export function HomePage() {
-  const trips = useTrips() ?? [];
-  const flights = useAllFlights();
-  const trains = useAllTrains();
-  const hotels = useAllHotels();
-  const expenses = useAllExpenses();
-  const docs = useLiveQuery(() => db.documents.toArray(), []) ?? [];
+  const allTrips = useTrips() ?? [];
+  const allFlights = useAllFlights();
+  const allTrains = useAllTrains();
+  const allHotels = useAllHotels();
+  const allExpenses = useAllExpenses();
+  const allDocs = useLiveQuery(() => db.documents.toArray(), []) ?? [];
   const members = useMemberMap();
   const sync = useSyncStatus();
   const [home] = useHomeCurrency();
+  const [focus] = useFocusMembers();
+  const [trainsOn] = useTrainsEnabled();
+  const focusLabel = useFocusLabel();
   const now = today();
+
+  // "Viewing for": keep only records that involve the focused members (empty focus = everyone).
+  const trips = allTrips.filter((t) => matchesFocus(focus, t.travellerIds));
+  const tripIds = new Set(trips.map((t) => t.id));
+  const flights = allFlights.filter((f) => matchesFocus(focus, f.passengerIds) || (focus.length > 0 && !f.passengerIds.length && f.tripId && tripIds.has(f.tripId)));
+  const trains = trainsOn ? allTrains.filter((x) => matchesFocus(focus, x.passengerIds) || (focus.length > 0 && !x.passengerIds.length && x.tripId && tripIds.has(x.tripId))) : [];
+  const hotels = allHotels.filter((h) => focus.length === 0 || tripIds.has(h.tripId));
+  const expenses = allExpenses.filter((e) => focus.length === 0 || tripIds.has(e.tripId) || (e.paidById ? focus.includes(e.paidById) : false));
+  const docs = allDocs.filter((d) => focus.length === 0 || focus.includes(d.memberId));
 
   const active = trips.filter((t) => tripStatus(t) !== "completed").sort((a, b) => a.startDate.localeCompare(b.startDate));
   const next = active[0];
@@ -107,13 +120,14 @@ export function HomePage() {
   return (
     <div className="space-y-6">
       <div>
-        <p className="text-sm text-muted">{greet}</p>
+        <p className="text-sm text-muted">{greet}{focusLabel ? ` · viewing for ${focusLabel}` : ""}</p>
         <h1 className="text-[28px] font-semibold tracking-tight">{next ? (tripStatus(next) === "ongoing" ? `Enjoy ${next.city}` : `${next.city} is coming up`) : "Where to next?"}</h1>
       </div>
+      <FocusPicker />
       {!sync.online && <div className="flex items-center gap-2 rounded-2xl bg-warn-soft px-4 py-2.5 text-sm font-medium text-warn"><WifiOff size={16} /> You're offline — viewing saved data. Changes will sync later.</div>}
 
       {next ? <NextTripHero trip={next} /> : (
-        <Card className="flex items-center justify-between gap-4 p-5"><div><p className="font-semibold">No upcoming trips</p><p className="text-sm text-muted">Plan a destination or log an ad-hoc flight.</p></div><Link to="/trips"><Button><Plus size={16} /> Plan a trip</Button></Link></Card>
+        <Card className="flex items-center justify-between gap-4 p-5"><div><p className="font-semibold">No upcoming trips{focusLabel ? ` for ${focusLabel}` : ""}</p><p className="text-sm text-muted">{focusLabel ? "Switch to Everyone to see the whole family's plans." : "Plan a destination or log an ad-hoc flight."}</p></div><Link to="/trips"><Button><Plus size={16} /> Plan a trip</Button></Link></Card>
       )}
 
       {(reminders.length > 0 || unconfirmed > 0) && (
@@ -177,7 +191,7 @@ export function HomePage() {
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <StatTile to="/trips" icon={Plane} value={active.length} label={`Active trip${active.length === 1 ? "" : "s"}`} />
-        <StatTile to="/trips?view=flights" icon={TrainFront} value={flights.length + trains.length} label="Journeys" />
+        <StatTile to="/trips?view=flights" icon={trainsOn ? TrainFront : Plane} value={flights.length + trains.length} label="Journeys" />
         <StatTile to="/family" icon={Users} value={members.size} label="Family" />
         <StatTile to="/vault" icon={FolderLock} value={docs.length} label="Documents" />
       </div>

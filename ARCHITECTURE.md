@@ -59,6 +59,21 @@ No code needed: press **+ New Trip**, or add a record shaped like `data/seed.ts`
 ## Environment
 See `.env.example`. Without Firebase keys the app is fully functional in local-only mode.
 
+## Flights: live times & 7-day averages
+With `VITE_AERODATABOX_KEY` set, `FlightCard` shows scheduled vs. actual (or airline-revised) times — the original is
+struck through and the new time is green when early, orange when late, red when 30+ min late — plus a strip with the
+average departure / arrival and on-time % over the last 7 days (`fetchFlightHistory`, AeroDataBox range endpoint with a
+per-day fallback, cached 12 h in the `settings` table). Without the key the card falls back to the manual times and an
+estimated phase, as before.
+
+## Per-person view & optional trains
+- `focusMembers` (settings table, per device): the "Viewing for" chips on Home filter trips (travellers), flights / trains
+  (passengers), stays & expenses (via the trip) and documents to the chosen people. Empty = everyone. The Trips hub honours
+  the same preference and shows a clearable banner.
+- `trainsEnabled` (settings table, per device): hides the Trains tab and the Trains section inside trips. Trains are
+  always listed last. Toggle from the Trips page or Settings.
+- Dark theme is AMOLED (true `#000` background, near-black surfaces).
+
 ## Trains
 No open, key-less global train API exists (each operator has its own, mostly behind keys), so train
 journeys are entered manually. The operator is inferred from the number format (e.g. 5 digits → Indian

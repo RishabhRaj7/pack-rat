@@ -1,12 +1,14 @@
 import { useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
-import { Plus, Search, Plane, TrainFront, Map as MapIcon, ChevronRight, X } from "lucide-react";
+import { Plus, Search, Plane, TrainFront, Map as MapIcon, ChevronRight, X, Users } from "lucide-react";
 import { db } from "@/lib/db";
 import { PageHeader, Button, Input, Chip, Card, EmptyState, StatusDot, Avatar } from "@/components/ui";
 import { useMemberMap } from "@/features/family/hooks";
 import { fmtDate, daysBetween, today, cn } from "@/lib/utils";
 import { smartFilter, dateRangeWords, dateWords } from "@/lib/search";
+import { useTrainsEnabled, useFocusMembers, matchesFocus } from "@/lib/prefs";
+import { useFocusLabel } from "@/features/family/FocusPicker";
 import { useTrips, useAllFlights, useAllTrains } from "./hooks";
 import { TripForm } from "./TripForm";
 import { placeStatus, tripStatus, NO_TRIP, type Trip, type TripStatus } from "./types";
@@ -56,11 +58,21 @@ function TripRow({ trip }: { trip: Trip }) {
 }
 
 export function TripsPage() {
-  const trips = useTrips();
-  const flights = useAllFlights();
-  const trains = useAllTrains();
+  const allTrips = useTrips();
+  const allFlights = useAllFlights();
+  const allTrains = useAllTrains();
+  const [trainsOn, setTrainsOn] = useTrainsEnabled();
+  const [focus, setFocus] = useFocusMembers();
+  const focusLabel = useFocusLabel();
+  // "Viewing for" (set on Home) narrows everything to the chosen family members.
+  const trips = useMemo(() => allTrips?.filter((t) => matchesFocus(focus, t.travellerIds)), [allTrips, focus]);
+  const tripIds = useMemo(() => new Set((trips ?? []).map((t) => t.id)), [trips]);
+  const inFocus = <T extends { tripId: string; passengerIds: string[] }>(x: T) => matchesFocus(focus, x.passengerIds) || (focus.length > 0 && !x.passengerIds.length && !!x.tripId && tripIds.has(x.tripId));
+  const flights = useMemo(() => allFlights.filter(inFocus), [allFlights, focus, tripIds]); // eslint-disable-line react-hooks/exhaustive-deps
+  const trains = useMemo(() => (trainsOn ? allTrains.filter(inFocus) : []), [allTrains, focus, tripIds, trainsOn]); // eslint-disable-line react-hooks/exhaustive-deps
   const [params, setParams] = useSearchParams();
-  const view: View = (["trips", "flights", "trains"] as const).includes(params.get("view") as View) ? (params.get("view") as View) : "trips";
+  const requestedView = params.get("view") as View;
+  const view: View = (["trips", "flights", "trains"] as const).includes(requestedView) && !(requestedView === "trains" && !trainsOn) ? requestedView : "trips";
   const setView = (v: View) => setParams((p) => { const n = new URLSearchParams(p); if (v === "trips") n.delete("view"); else n.set("view", v); return n; }, { replace: true });
   const [q, setQ] = useState("");
   const [status, setStatus] = useState<TripStatus | "all">("all");
@@ -101,11 +113,30 @@ export function TripsPage() {
     <div>
       <PageHeader title="Trips" subtitle={view === "trips" ? `${trips?.length ?? 0} trip${trips?.length === 1 ? "" : "s"}${adhocCount ? ` · ${adhocCount} ad-hoc journey${adhocCount === 1 ? "" : "s"}` : ""}` : view === "flights" ? "All flights — inside trips and ad-hoc." : "All train journeys — inside trips and ad-hoc."} action={addAction} />
 
-      {/* View switch (M3 segmented) */}
-      <div className="mb-4 inline-flex overflow-hidden rounded-full border border-line">
-        {([{ v: "trips", l: "Trips", I: MapIcon }, { v: "flights", l: "Flights", I: Plane }, { v: "trains", l: "Trains", I: TrainFront }] as const).map(({ v, l, I }) => (
-          <button key={v} onClick={() => setView(v)} className={cn("flex items-center gap-1.5 border-r border-line px-4 py-2 text-sm font-medium transition last:border-r-0", view === v ? "bg-accent-soft text-accent-strong" : "hover:bg-surface-2")}><I size={15} /> {l}</button>
-        ))}
+      {/* View switch (M3 segmented). Trains is optional and always last. */}
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <div className="inline-flex overflow-hidden rounded-full border border-line">
+          {([{ v: "trips", l: "Trips", I: MapIcon }, { v: "flights", l: "Flights", I: Plane }, ...(trainsOn ? ([{ v: "trains", l: "Trains", I: TrainFront }] as const) : [])] as const).map(({ v, l, I }) => (
+            <button key={v} onClick={() => setView(v)} className={cn("flex items-center gap-1.5 border-r border-line px-4 py-2 text-sm font-medium transition last:border-r-0", view === v ? "bg-accent-soft text-accent-strong" : "hover:bg-surface-2")}><I size={15} /> {l}</button>
+          ))}
+        </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={trainsOn}
+          onClick={() => void setTrainsOn(!trainsOn)}
+          title={trainsOn ? "Hide the Trains tab and train sections" : "Show trains"}
+          className={cn("flex items-center gap-1.5 rounded-full border px-3 py-2 text-xs font-medium transition", trainsOn ? "border-line text-muted hover:bg-surface-2" : "border-dashed border-line text-muted hover:bg-surface-2")}
+        >
+          <TrainFront size={14} /> Trains {trainsOn ? "on" : "off"}
+          <span className={cn("ml-1 inline-flex h-4 w-7 items-center rounded-full p-0.5 transition", trainsOn ? "bg-accent justify-end" : "bg-line justify-start")}><span className="h-3 w-3 rounded-full bg-surface shadow" /></span>
+        </button>
+        {focusLabel && (
+          <span className="ml-auto flex items-center gap-1.5 rounded-full bg-accent-soft py-1 pl-2.5 pr-1 text-xs font-medium text-accent-strong">
+            <Users size={13} /> Viewing for {focusLabel}
+            <button type="button" onClick={() => void setFocus([])} className="rounded-full p-1 hover:bg-black/10 dark:hover:bg-white/10" title="Show everyone"><X size={12} /></button>
+          </span>
+        )}
       </div>
 
       <div className="mb-3 relative">

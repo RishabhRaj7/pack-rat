@@ -166,12 +166,188 @@ export interface FlightLive {
   source: "aerodatabox" | "estimated";
   scheduledDepart?: string;
   scheduledArrive?: string;
+  /** Actual (runway / gate) time once it happened; otherwise the airline's revised estimate if it differs. */
   actualDepart?: string;
   actualArrive?: string;
+  /** True when actualX is a revised estimate rather than a real off/on-block time. */
+  departIsEstimate?: boolean;
+  arriveIsEstimate?: boolean;
   gate?: string;
   terminal?: string;
   delayMins?: number;
   fetchedAt: number;
+}
+
+/** Local ISO string from an AeroDataBox time object ({ local: "2025-11-03 09:40+08:00" } or a plain string). */
+const adbLocal = (t: unknown): string | undefined => {
+  const raw = typeof t === "string" ? t : (t as { local?: string } | undefined)?.local;
+  if (!raw) return undefined;
+  // "2025-11-03 09:40+08:00" → "2025-11-03T09:40"
+  return raw.slice(0, 16).replace(" ", "T");
+};
+
+/** Minutes between two local ISO datetimes (b − a). */
+export const minutesDiff = (a?: string, b?: string) => (a && b ? Math.round((new Date(b).getTime() - new Date(a).getTime()) / 60_000) : undefined);
+
+export const HAS_FLIGHT_DATA_KEY = !!import.meta.env.VITE_AERODATABOX_KEY;
+
+/** True when the app can show real (rather than estimated) flight data. */
+export function hasFlightDataKey() {
+  return HAS_FLIGHT_DATA_KEY;
+}
+
+type AdbLeg = {
+  status?: string;
+  departure?: { scheduledTime?: unknown; revisedTime?: unknown; runwayTime?: unknown; predictedTime?: unknown; gate?: string; terminal?: string };
+  arrival?: { scheduledTime?: unknown; revisedTime?: unknown; runwayTime?: unknown; predictedTime?: unknown; gate?: string; terminal?: string };
+};
+
+/** Best-known times for a leg: scheduled + (actual | revised estimate). */
+function legTimes(leg: AdbLeg) {
+  const sd = adbLocal(leg.departure?.scheduledTime);
+  const sa = adbLocal(leg.arrival?.scheduledTime);
+  const runD = adbLocal(leg.departure?.runwayTime);
+  const runA = adbLocal(leg.arrival?.runwayTime);
+  const revD = adbLocal(leg.departure?.revisedTime) ?? adbLocal(leg.departure?.predictedTime);
+  const revA = adbLocal(leg.arrival?.revisedTime) ?? adbLocal(leg.arrival?.predictedTime);
+  return {
+    scheduledDepart: sd,
+    scheduledArrive: sa,
+    actualDepart: runD ?? revD,
+    actualArrive: runA ?? revA,
+    departIsEstimate: !runD && !!revD,
+    arriveIsEstimate: !runA && !!revA,
+  };
+}
+
+function parseAdbStatus(raw: unknown): LiveFlightStatus {
+  const s = String(raw ?? "").toLowerCase();
+  if (s.includes("cancel")) return "cancelled";
+  if (s.includes("delay")) return "delayed";
+  if (s.includes("arrived") || s.includes("landed")) return "landed";
+  if (s.includes("departed") || s.includes("enroute") || s.includes("en route")) return "departed";
+  if (s.includes("boarding")) return "boarding";
+  return "scheduled";
+}
+
+const adbHeaders = (key: string) => ({ "X-RapidAPI-Key": key, "X-RapidAPI-Host": "aerodatabox.p.rapidapi.com" });
+
+/* ---------------- 7-day history (average departure / arrival) ---------------- */
+export interface FlightDaySample {
+  date: string; // YYYY-MM-DD (local departure date)
+  scheduledDepart?: string;
+  scheduledArrive?: string;
+  actualDepart?: string;
+  actualArrive?: string;
+  status: LiveFlightStatus;
+}
+export interface FlightHistory {
+  flightNumber: string;
+  from: string; // window start (YYYY-MM-DD)
+  to: string; // window end
+  samples: FlightDaySample[];
+  /** Average actual departure / arrival clock time (HH:mm) across days that operated. */
+  avgDepart?: string;
+  avgArrive?: string;
+  /** Average delay in minutes vs. schedule (negative = early). */
+  avgDepartDelay?: number;
+  avgArriveDelay?: number;
+  onTimePct?: number; // arrivals within 15 min of schedule
+  fetchedAt: number;
+}
+
+const HISTORY_TTL = 12 * 60 * 60 * 1000;
+const isoDay = (d: Date) => d.toISOString().slice(0, 10);
+const hhmm = (mins: number) => {
+  const m = ((Math.round(mins) % 1440) + 1440) % 1440;
+  return `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+};
+const minsOfDay = (iso: string) => new Date(iso).getHours() * 60 + new Date(iso).getMinutes();
+
+function summarise(flightNumber: string, from: string, to: string, samples: FlightDaySample[]): FlightHistory {
+  const dep = samples.filter((s) => s.actualDepart && s.scheduledDepart && s.status !== "cancelled");
+  const arr = samples.filter((s) => s.actualArrive && s.scheduledArrive && s.status !== "cancelled");
+  const avg = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : undefined);
+  const depDelay = avg(dep.map((s) => minutesDiff(s.scheduledDepart, s.actualDepart)!));
+  const arrDelay = avg(arr.map((s) => minutesDiff(s.scheduledArrive, s.actualArrive)!));
+  // Average clock time = mean scheduled clock time + mean delay (avoids midnight wrap-around artefacts).
+  const depBase = avg(dep.map((s) => minsOfDay(s.scheduledDepart!)));
+  const arrBase = avg(arr.map((s) => minsOfDay(s.scheduledArrive!)));
+  const onTime = arr.filter((s) => minutesDiff(s.scheduledArrive, s.actualArrive)! <= 15).length;
+  return {
+    flightNumber,
+    from,
+    to,
+    samples,
+    avgDepart: depBase != null && depDelay != null ? hhmm(depBase + depDelay) : undefined,
+    avgArrive: arrBase != null && arrDelay != null ? hhmm(arrBase + arrDelay) : undefined,
+    avgDepartDelay: depDelay != null ? Math.round(depDelay) : undefined,
+    avgArriveDelay: arrDelay != null ? Math.round(arrDelay) : undefined,
+    onTimePct: arr.length ? Math.round((onTime / arr.length) * 100) : undefined,
+    fetchedAt: Date.now(),
+  };
+}
+
+/**
+ * Average departure / arrival across the last 7 days (yesterday back to 7 days ago).
+ * Uses the AeroDataBox range endpoint (one call); falls back to per-day calls if the plan doesn't allow ranges.
+ * Cached for 12 h in IndexedDB. Returns null without an API key.
+ */
+export async function fetchFlightHistory(flightNumber: string, force = false): Promise<FlightHistory | null> {
+  const key = import.meta.env.VITE_AERODATABOX_KEY;
+  if (!key) return null;
+  const num = flightNumber.replace(/\s+/g, "").toUpperCase();
+  const cacheKey = `flh:${num}`;
+  const cached = await getSetting<FlightHistory | null>(cacheKey, null);
+  if (cached && !force && Date.now() - cached.fetchedAt < HISTORY_TTL) return cached;
+
+  const end = new Date();
+  end.setDate(end.getDate() - 1);
+  const start = new Date(end);
+  start.setDate(start.getDate() - 6);
+  const from = isoDay(start);
+  const to = isoDay(end);
+
+  const toSample = (leg: AdbLeg): FlightDaySample => {
+    const t = legTimes(leg);
+    return { date: (t.scheduledDepart ?? "").slice(0, 10), ...t, status: parseAdbStatus(leg.status) };
+  };
+
+  try {
+    let legs: AdbLeg[] | null = null;
+    const r = await fetch(`https://aerodatabox.p.rapidapi.com/flights/number/${encodeURIComponent(num)}/${from}/${to}?dateLocalRole=Departure&withAircraftImage=false&withLocation=false`, { headers: adbHeaders(key) });
+    if (r.ok) {
+      const j = await r.json();
+      legs = Array.isArray(j) ? j : null;
+    }
+    if (!legs) {
+      // Per-day fallback (7 small requests).
+      const days: string[] = [];
+      for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) days.push(isoDay(d));
+      const results = await Promise.all(
+        days.map(async (d) => {
+          try {
+            const rr = await fetch(`https://aerodatabox.p.rapidapi.com/flights/number/${encodeURIComponent(num)}/${d}?dateLocalRole=Departure&withAircraftImage=false&withLocation=false`, { headers: adbHeaders(key) });
+            if (!rr.ok) return [];
+            const jj = await rr.json();
+            return Array.isArray(jj) ? (jj as AdbLeg[]) : [];
+          } catch {
+            return [];
+          }
+        })
+      );
+      legs = results.flat();
+    }
+    // One sample per day (first leg of that date); ignore legs without a scheduled departure.
+    const byDay = new Map<string, FlightDaySample>();
+    legs.map(toSample).filter((s) => s.date).forEach((s) => { if (!byDay.has(s.date)) byDay.set(s.date, s); });
+    const samples = [...byDay.values()].sort((a, b) => a.date.localeCompare(b.date));
+    const hist = summarise(num, from, to, samples);
+    await setSetting(cacheKey, hist);
+    return hist;
+  } catch {
+    return cached;
+  }
 }
 
 /** Without an API key we estimate the phase from the scheduled times; with AeroDataBox (RapidAPI) we return live data. */
@@ -180,34 +356,24 @@ export async function fetchFlightStatus(f: Flight): Promise<FlightLive> {
   if (key) {
     try {
       const date = f.departAt.slice(0, 10);
-      const r = await fetch(`https://aerodatabox.p.rapidapi.com/flights/number/${encodeURIComponent(f.flightNumber)}/${date}?withAircraftImage=false&withLocation=false`, {
-        headers: { "X-RapidAPI-Key": key, "X-RapidAPI-Host": "aerodatabox.p.rapidapi.com" },
+      const r = await fetch(`https://aerodatabox.p.rapidapi.com/flights/number/${encodeURIComponent(f.flightNumber)}/${date}?dateLocalRole=Departure&withAircraftImage=false&withLocation=false`, {
+        headers: adbHeaders(key),
       });
       if (r.ok) {
         const arr = await r.json();
-        const leg = Array.isArray(arr) ? arr[0] : null;
+        const leg: AdbLeg | null = Array.isArray(arr) ? arr[0] : null;
         if (leg) {
-          const s = String(leg.status ?? "").toLowerCase();
-          const status: LiveFlightStatus = s.includes("cancel")
-            ? "cancelled"
-            : s.includes("delay")
-              ? "delayed"
-              : s.includes("arrived") || s.includes("landed")
-                ? "landed"
-                : s.includes("departed") || s.includes("enroute") || s.includes("en route")
-                  ? "departed"
-                  : s.includes("boarding")
-                    ? "boarding"
-                    : "scheduled";
+          const times = legTimes(leg);
+          let status = parseAdbStatus(leg.status);
+          const delay = minutesDiff(times.scheduledDepart, times.actualDepart);
+          if (status === "scheduled" && delay != null && delay >= 15) status = "delayed";
           const live: FlightLive = {
             status,
             source: "aerodatabox",
-            scheduledDepart: leg.departure?.scheduledTime?.local,
-            scheduledArrive: leg.arrival?.scheduledTime?.local,
-            actualDepart: leg.departure?.actualTime?.local,
-            actualArrive: leg.arrival?.actualTime?.local,
+            ...times,
             gate: leg.departure?.gate,
             terminal: leg.departure?.terminal,
+            delayMins: delay,
             fetchedAt: Date.now(),
           };
           await setSetting(`fl:${f.id}`, live);
@@ -215,9 +381,10 @@ export async function fetchFlightStatus(f: Flight): Promise<FlightLive> {
         }
       }
     } catch {
-      const cached = await getSetting<FlightLive | null>(`fl:${f.id}`, null);
-      if (cached) return cached;
+      /* fall through to cache / estimate */
     }
+    const cached = await getSetting<FlightLive | null>(`fl:${f.id}`, null);
+    if (cached) return cached;
   }
   const now = Date.now();
   const dep = new Date(f.departAt).getTime();
